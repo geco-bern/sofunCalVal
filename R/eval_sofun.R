@@ -504,21 +504,29 @@ eval_sofun_byvar <- function(
 
     }
 
-    ##------------------------------------------------------------
-    ## Get IXV (inter-day variability) as daily value minus mean by site and DOY
-    ##------------------------------------------------------------
+    # Inter-day variability as daily value minus mean by site and DOY ----
+
     if (sum(!is.na(xdf$obs))>2){
       rlang::inform("Evaluate inter-X-day variability...")
       ixvdf <- xdf %>%  mutate( xoy = yday(inbin) ) %>%
-                left_join( dplyr::rename( meanxoydf, mod_mean = mod_mean, obs_mean = obs_mean ), by = c("sitename", "xoy") ) %>%
-                mutate( mod = mod - mod_mean, obs = obs - obs_mean ) %>%
-                dplyr::select( -obs_mean, -mod_mean, -obs_min, -obs_max) #-mod_min, -mod_max
+        left_join( dplyr::rename(
+          meanxoydf,
+          mod_mean = mod_mean,
+          obs_mean = obs_mean ), by = c("sitename", "xoy") ) %>%
+        mutate( mod = mod - mod_mean, obs = obs - obs_mean ) %>%
+        dplyr::select(
+          -obs_mean,
+          -mod_mean,
+          -obs_min,
+          -obs_max)
 
       if (!light){
         ixvdf_stats <- ixvdf %>%
           group_by( sitename ) %>%
           nest() %>%
-          mutate( nxdays_obs = purrr::map( data, ~sum(!is.na( .$obs )  ) ), nxdays_mod = purrr::map( data, ~sum(!is.na( .$mod )  ) ) ) %>%
+          mutate(
+            nxdays_obs = purrr::map( data, ~sum(!is.na( .$obs )  ) ),
+            nxdays_mod = purrr::map( data, ~sum(!is.na( .$mod )  ) ) ) %>%
           unnest( nxdays_obs, nxdays_mod ) %>%
           dplyr::filter( nxdays_obs > 2 & nxdays_mod > 2 ) %>%
           mutate( linmod = purrr::map( data, ~lm( obs ~ mod, data = . ) ),
@@ -543,17 +551,24 @@ eval_sofun_byvar <- function(
 
     }
 
-    ##------------------------------------------------------------
-    ## FLUXNET2015-Plots
-    ##------------------------------------------------------------
+
+    # FLUXNET2015-Plots ----
+
     if (!light){
-      ##------------------------------------------------------------
-      ## Mod. vs. obs. of mean per site -> spatial correlation
-      ##------------------------------------------------------------
+
+      # Mod. vs. obs. of mean per site -> spatial correlation ----
+
       plot_modobs_spatial <- function( makepdf=FALSE ){   # using meandf
 
-        if (!dir.exists(settings$dir_figs)) system( paste0( "mkdir -p ", settings$dir_figs ) )
-        if (makepdf) { filn <- paste0( settings$dir_figs, "/modobs_spatial.pdf" ) } else { filn <- NA }
+        if (!dir.exists(settings$dir_figs)){
+          system( paste0( "mkdir -p ", settings$dir_figs ) )
+        }
+
+        if (makepdf) {
+          filn <- paste0( settings$dir_figs, "/modobs_spatial.pdf" )
+        } else {
+          filn <- NA
+        }
 
         if (nrow(meandf)>2){
 
@@ -573,14 +588,16 @@ eval_sofun_byvar <- function(
           out <- list(gg=gg, df_metrics=NA)
         }
 
-        if (makepdf) ggsave(filn)
+        if (makepdf){
+          ggsave(filn)
+        }
 
         return(out)
       }
 
-      ##------------------------------------------------------------
-      ## Combined spatial - IAV correlation
-      ##------------------------------------------------------------
+
+      # Combined spatial - IAV correlation ----
+
       plot_modobs_spatial_annual <- function(){
 
         get_start_end <- function(df){
@@ -611,51 +628,94 @@ eval_sofun_byvar <- function(
 
         gg <- df %>%
           ggplot() +
-          geom_segment(aes(x=xmin, y=ymin, xend=xmax, yend=ymax)) +
-          geom_line(data = fortify(linmod_meandf), aes(x = mod, y = .fitted), color="red") +
-          geom_abline(intercept=0, slope=1, linetype="dotted") +
-          # ggrepel::geom_text_repel(data = df, aes(x = xmax, y = ymax, label = mylabel)) +
+          geom_segment(
+            aes(
+              x=xmin,
+              y=ymin,
+              xend=xmax,
+              yend=ymax)
+            ) +
+          geom_line(
+            data = fortify(linmod_meandf),
+            aes(
+              x = mod,
+              y = .fitted
+              ),
+            color="red") +
+          geom_abline(
+            intercept=0,
+            slope=1,
+            linetype="dotted"
+            ) +
           theme_classic() +
           xlim(0,NA) +
           ylim(0,NA) +
           labs(
-            subtitle = bquote( bold("Annual:") ~ italic(R)^2 == .(rsq_lab_annual) ~~
-                                 RMSE == .(rmse_lab_annual) ~ "\n" ~
-                                 bold("Spatial:") ~ italic(R)^2 == .(rsq_lab_spatial) ~~
-                                 RMSE == .(rmse_lab_spatial) ),
+            subtitle =
+              bquote( bold("Annual:") ~ italic(R)^2 == .(rsq_lab_annual) ~~
+                      RMSE == .(rmse_lab_annual) ~ "\n" ~
+                      bold("Spatial:") ~ italic(R)^2 == .(rsq_lab_spatial) ~~
+                      RMSE == .(rmse_lab_spatial) ),
             y = expression( paste("Observed GPP (gC m"^-2, "yr"^-1, ")" ) ),
             x = expression( paste("Simulated GPP (gC m"^-2, "yr"^-1, ")" ) ))
 
         return(gg)
       }
 
-      ##------------------------------------------------------------
-      ## Mod. vs. obs. of IAV correlation: x_(y,i) - mean_y( x_(y,i) )
-      ##------------------------------------------------------------
-      plot_modobs_anomalies_annual <- function( makepdf = FALSE ){   # using iavdf, iavdf_stats
-        # source("analyse_modobs.R")
-        if(makepdf) pdf( paste0( settings$dir_figs, "/modobs_anomalies_annual.pdf") )
+
+      # Mod. vs. obs. of IAV correlation: x_(y,i) - mean_y( x_(y,i) ) ----
+
+      # using iavdf, iavdf_stats
+      plot_modobs_anomalies_annual <- function(
+        makepdf = FALSE
+        ){
+
+        if(makepdf){
+          pdf( paste0( settings$dir_figs, "/modobs_anomalies_annual.pdf") )
+        }
+
         par(las=1)
-        modobs_anomalies_annual <- with( iavdf, rbeni::analyse_modobs2(mod,
-                                                               obs,
-                                                               heat = FALSE,
-                                                               ylab = expression( paste("observed GPP (gC m"^-2, "yr"^-1, ")" ) ),
-                                                               xlab = expression( paste("simulated GPP (gC m"^-2, "yr"^-1, ")" ) ),
-                                                               plot.title = "IAV correlation"
-        ))
-        out <- iavdf_stats %>%  mutate( purrr::map( data, ~lines( fitted ~ mod, data = ., col=rgb(0,0,1,0.3) ) ) )  # to have it sorted: %>% mutate( data = purrr::map( data, ~arrange( ., mod ) ) )
+        modobs_anomalies_annual <- with(
+          iavdf,
+          rbeni::analyse_modobs2(
+            mod,
+            obs,
+            heat = FALSE,
+            ylab = expression( paste("observed GPP (gC m"^-2, "yr"^-1, ")" ) ),
+            xlab = expression( paste("simulated GPP (gC m"^-2, "yr"^-1, ")" ) ),
+            plot.title = "IAV correlation"
+          ))
+        out <- iavdf_stats %>%
+          mutate( purrr::map(
+            data,
+            ~lines( fitted ~ mod, data = ., col=rgb(0,0,1,0.3) ) ) )
+        # NOTE: to have it sorted:
+        # %>% mutate( data = purrr::map( data, ~arrange( ., mod ) ) )
+
         if(makepdf) dev.off()
         return(modobs_anomalies_annual)
       }
 
 
-      ##------------------------------------------------------------
-      ## Mod. vs. obs. of IDV (interday variability) correlation: x_(d,i) - mean_d( x_(d,i) )
-      ##------------------------------------------------------------
-      plot_modobs_anomalies_daily <- function( pattern="", makepdf = FALSE ){   # using idvdf, idvdf_stats
-        # source("analyse_modobs.R")
-        if (makepdf && !dir.exists(settings$dir_figs)) system( paste0( "mkdir -p ", settings$dir_figs))
-        if (makepdf) pdf( paste0( settings$dir_figs, "/modobs_anomalies_daily_", pattern, ".pdf" ) )
+      # Mod. vs. obs. of IDV (interday variability) correlation ----
+      #x_(d,i) - mean_d( x_(d,i) )
+
+      # using idvdf, idvdf_stats
+      plot_modobs_anomalies_daily <- function(
+        pattern="",
+        makepdf = FALSE
+        ){
+
+        if (makepdf && !dir.exists(settings$dir_figs)){
+          system( paste0( "mkdir -p ", settings$dir_figs)) # CHANGE TO create.dir()
+        }
+
+        if (makepdf){ # USE file.path()
+          pdf(
+            paste0( settings$dir_figs,
+                    "/modobs_anomalies_daily_", pattern, ".pdf" )
+            )
+        }
         modobs_anomalies_daily <- with( idvdf, rbeni::analyse_modobs2(
           mod,
           obs,
@@ -663,9 +723,15 @@ eval_sofun_byvar <- function(
           ylab = expression( paste("observed GPP (gC m"^-2, "d"^-1, ")" ) ),
           xlab = expression( paste("simulated GPP (gC m"^-2, "d"^-1, ")" ) )
         ))
-        out <- idvdf_stats %>%  mutate( purrr::map( data, ~lines( fitted ~ mod, data = ., col=rgb(0,0,1,0.05) ) ) )  # to have it sorted: %>% mutate( data = purrr::map( data, ~arrange( ., mod ) ) )
+        out <- idvdf_stats %>%
+          mutate( purrr::map(
+            data,
+            ~lines( fitted ~ mod, data = ., col=rgb(0,0,1,0.05) ) ) )
+        # NOTE: to have it sorted:
+        # %>% mutate( data = purrr::map( data, ~arrange( ., mod ) ) )
+
         title( "IDV correlation" )
-        if (makepdf) dev.off()
+        if (makepdf){dev.off()}
 
         ## histogram of daily anomalies from mean seasonal cycle based on DOY
         ##------------------------------------------------------------
