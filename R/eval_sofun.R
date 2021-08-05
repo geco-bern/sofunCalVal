@@ -83,14 +83,14 @@ eval_sofun_byvar <- function(
 
   if ("fluxnet" %in% datasource){
 
-    ## GPP EVALUATION AGAINST FLUXNET 2015 DATA
-    ## Evaluate model vs. observations for decomposed time series
-    ## into:
-    ## - spatial
-    ## - inter-annual
-    ## - multi-year trend
-    ## - seasonal (different time scales: daily/weekly/monthly)
-    ## - anomalies (different time scales: daily/weekly/monthly)
+    # GPP EVALUATION AGAINST FLUXNET 2015 DATA
+    # Evaluate model vs. observations for decomposed time series
+    # into:
+    # - spatial
+    # - inter-annual
+    # - multi-year trend
+    # - seasonal (different time scales: daily/weekly/monthly)
+    # - anomalies (different time scales: daily/weekly/monthly)
 
     ## Initialise lists
     metrics <- list()
@@ -104,9 +104,9 @@ eval_sofun_byvar <- function(
 
     settings$sitenames <- settings$sitenames[which(!(settings$sitenames %in% missing_mod))]
 
-    ##------------------------------------------------------------
-    ## Get daily model output
-    ##------------------------------------------------------------
+
+    # Get daily model output ----
+
     # missing_mod <- purrr::map_lgl( mod$daily, ~identical(., NA ) ) %>% which() %>% names()
     # missing_mod <- purrr::map_lgl( mod$daily, ~identical(., NULL ) ) %>% which() %>% names()
 

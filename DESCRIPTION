@@ -44,3 +44,7 @@ Suggests:
     testthat,
     knitr
 VignetteBuilder: knitr
+Remotes:
+    stineb/ingestr,
+    stineb/rsofun,
+    stineb/rbeni
