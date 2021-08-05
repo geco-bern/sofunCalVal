@@ -59,7 +59,31 @@ df_meteo <- df_fluxnet %>%
 # convert units and deal with missing data ----
 
 # WHAT WITH TMIN TMAX RAIN ETC
-
+#
+# df_drivers_fluxnet2015 <- df_drivers_fluxnet2015 %>%
+#   dplyr::select(sitename, forcing) %>%
+#   unnest(forcing) %>%
+#   dplyr::filter(!(month(date)==2 & mday(date)==29)) %>%
+#
+#   ## model requires flux per seconds now
+#   mutate(prec = prec / (60*60*24), ppfd = ppfd / (60*60*24)) %>%
+#
+#   ## assuming all precipitation in liquid form
+#   mutate(rainf = prec, snowf = 0) %>%
+#
+#   ## required for new version, but not used because
+#   mutate(tmin = temp, tmax = temp) %>%
+#
+#   group_by(sitename) %>%
+#   nest() %>%
+#   rename(forcing = data) %>%
+#   right_join(
+#     df_drivers_fluxnet2015 %>%
+#       dplyr::select(-forcing),
+#     by = "sitename"
+#   ) %>%
+#   ungroup()
+#
 
 # grab MODIS FPAR data ----
 settings_modis <- get_settings_modis(
