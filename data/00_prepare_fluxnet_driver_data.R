@@ -76,7 +76,7 @@ settings_modis <- get_settings_modis(
   bundle            = "modis_fpar",
   data_path         = tempdir(),
   method_interpol   = "loess",
-  network = "fluxnet",
+  network = c("fluxnet","icos"),
   keep              = TRUE,
   overwrite_raw     = FALSE,
   overwrite_interpol= TRUE,
