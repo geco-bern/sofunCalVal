@@ -23,8 +23,8 @@ message("Formatting driver data:")
 
 # . set sites to ingest ----
 fluxnet_sites <- ingestr::siteinfo_fluxnet2015 %>%
-  dplyr::filter(!(sitename %in% c("DE-Akm", "US-ORv", "DE-RuS"))) %>%
-  dplyr::filter(sitename == "FR-Pue") # for debugging
+  dplyr::filter(!(sitename %in% c("DE-Akm", "US-ORv", "DE-RuS")))
+  #dplyr::filter(sitename == "FR-Pue") # for debugging
 
 # . grab fluxnet data ----
 message("- formatting fluxnet data")
@@ -68,35 +68,6 @@ df_meteo <- df_fluxnet %>%
   ) %>%
   group_by(sitename) %>%
   tidyr::nest()
-
-# . convert units and deal with missing data ----
-
-# WHAT WITH TMIN TMAX RAIN ETC
-#
-# df_drivers_fluxnet2015 <- df_drivers_fluxnet2015 %>%
-#   dplyr::select(sitename, forcing) %>%
-#   unnest(forcing) %>%
-#   dplyr::filter(!(month(date)==2 & mday(date)==29)) %>%
-#
-#   ## model requires flux per seconds now
-#   mutate(prec = prec / (60*60*24), ppfd = ppfd / (60*60*24)) %>%
-#
-#   ## assuming all precipitation in liquid form
-#   mutate(rainf = prec, snowf = 0) %>%
-#
-#   ## required for new version, but not used because
-#   mutate(tmin = temp, tmax = temp) %>%
-#
-#   group_by(sitename) %>%
-#   nest() %>%
-#   rename(forcing = data) %>%
-#   right_join(
-#     df_drivers_fluxnet2015 %>%
-#       dplyr::select(-forcing),
-#     by = "sitename"
-#   ) %>%
-#   ungroup()
-#
 
 # . grab MODIS FPAR data ----
 message("- downloading MODIS fapar data")
