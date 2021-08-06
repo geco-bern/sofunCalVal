@@ -8,7 +8,7 @@
 # The routine used is largely based on previous work
 # REFERENCE PAPER BENI.
 
-# libraries, check for Euler access ----
+# Libraries, check for Euler access ----
 library(tidyverse)
 library(rsofun)
 library(ingestr)
@@ -19,27 +19,37 @@ if(!grepl('eu-', Sys.info()['nodename'])){
 
 # Process driver data -----------------------------------------------------
 
+message("Formatting driver data:")
+
 # . set sites to ingest ----
 fluxnet_sites <- ingestr::siteinfo_fluxnet2015 %>%
-  dplyr::filter(!(sitename %in% c("DE-Akm", "US-ORv", "DE-RuS")))
+  dplyr::filter(!(sitename %in% c("DE-Akm", "US-ORv", "DE-RuS"))) %>%
+  dplyr::filter(sitename == "FR-Pue") # for debugging
 
 # . grab fluxnet data ----
-df_fluxnet <- ingestr::ingest(
-  siteinfo  = fluxnet_sites,
-  source    = "fluxnet",
-  getvars   = list(
-    temp = "TA_F_DAY",
-    prec = "P_F",
-    vpd  = "VPD_F_DAY",
-    ppfd = "SW_IN_F",
-    patm = "PA_F"),
-  dir       = "~/data/FLUXNET-2015_Tier1/20191024/DD/",
-  settings  = list(
-    dir_hh = "~/data/FLUXNET-2015_Tier1/20191024/HH/", getswc = FALSE),
-  timescale = "d"
-)
+message("- formatting fluxnet data")
+df_fluxnet <-
+  suppressWarnings(
+    suppressMessages(
+      ingestr::ingest(
+        siteinfo  = fluxnet_sites,
+        source    = "fluxnet",
+        getvars   = list(
+          temp = "TA_F_DAY",
+          prec = "P_F",
+          vpd  = "VPD_F_DAY",
+          ppfd = "SW_IN_F",
+          patm = "PA_F"),
+        dir       = "~/data/FLUXNET-2015_Tier1/20191024/DD/",
+        settings  = list(
+          dir_hh = "~/data/FLUXNET-2015_Tier1/20191024/HH/", getswc = FALSE),
+        timescale = "d"
+      )
+    )
+  )
 
 # . get CRU data to complement fluxnet data ----
+message("- formatting CRU data")
 df_cru <- ingestr::ingest(
   siteinfo  = fluxnet_sites,
   source    = "cru",
@@ -48,6 +58,7 @@ df_cru <- ingestr::ingest(
   )
 
 # . merge data into one "meteo" data frame ----
+message("- combining meteo data")
 df_meteo <- df_fluxnet %>%
   tidyr::unnest(data) %>%
   left_join(
@@ -88,16 +99,20 @@ df_meteo <- df_fluxnet %>%
 #
 
 # . grab MODIS FPAR data ----
+message("- downloading MODIS fapar data")
+
 settings_modis <- get_settings_modis(
   bundle            = "modis_fpar",
-  data_path         = "~/data/modis_subsets/",
+  data_path         = tempdir(),
   method_interpol   = "loess",
+  network = "fluxnet",
   keep              = TRUE,
   overwrite_raw     = FALSE,
   overwrite_interpol= TRUE,
   n_focal           = 0
   )
 
+message("- downloading modis FAPAR")
 df_modis_fpar <- ingest(
   fluxnet_sites,
   source = "modis",
@@ -112,6 +127,7 @@ df_modis_fpar <- df_modis_fpar %>%
     )
 
 # . grab CO2 data ----
+message("- grabbing CO2 data")
 df_co2 <- ingestr::ingest(
   fluxnet_sites,
   source  = "co2_mlo",
@@ -156,6 +172,7 @@ params_siml <- list(
 	)
 
 # . combine all data into the rsofun driver data format ----
+message("-- combining all data into driver files")
 p_model_fluxnet_drivers <- rsofun::collect_drivers_sofun(
   siteinfo       = fluxnet_sites,
   params_siml    = params_siml,
@@ -166,6 +183,7 @@ p_model_fluxnet_drivers <- rsofun::collect_drivers_sofun(
   )
 
 # . save data as a datafile, recognized by the package ----
+message("-- saving data and DONE!")
 save(p_model_fluxnet_drivers,
      file = "data/p_model_fluxnet_drivers.rda",
      compress = "xz")
@@ -173,8 +191,12 @@ save(p_model_fluxnet_drivers,
 
 # Prepare validation data -------------------------------------------------
 
+message("Formating reference data:")
+
+# load site selection New Phytologist
 load("data/nphyt_sites.rda")
 
+# create calibration selection
 calib_sites <- fluxnet_sites %>%
   # excluded because fapar data could not be downloaded (WEIRD)
   dplyr::filter(!(sitename %in% c("DE-Akm", "IT-Ro1"))) %>%
@@ -186,6 +208,9 @@ calib_sites <- fluxnet_sites %>%
   dplyr::filter( sitename %in% nphyt_sites ) %>%
   pull(sitename)
 
+calib_sites <- fluxnet_sites %>%
+  dplyr::filter(sitename %in% calibsites)
+
 # settings for data preparation
 settings_ingestr_fluxnet <- list(
   dir_hh = "~/data/FLUXNET-2015_Tier1/20191024/HH/",
@@ -195,16 +220,24 @@ settings_ingestr_fluxnet <- list(
   remove_neg = FALSE
 )
 
-p_model_fluxnet_calval <- ingestr::ingest(
-  siteinfo = fluxnet_sites %>%
-    dplyr::filter(sitename %in% calibsites),
-  source    = "fluxnet",
-  getvars = list(gpp = "GPP_NT_VUT_REF",
-                 gpp_unc = "GPP_NT_VUT_SE"),
-  dir = "~/data/FLUXNET-2015_Tier1/20191024/DD/",
-  settings = settings_ingestr_fluxnet,
-  timescale = "d"
-)
+# . format fluxnet GPP data ----
+
+message(" - formatting ")
+
+p_model_fluxnet_calval <-
+  suppressWarnings(
+    suppressMessages(
+      ingestr::ingest(
+        siteinfo = calib_sites,
+        source    = "fluxnet",
+        getvars = list(gpp = "GPP_NT_VUT_REF",
+                       gpp_unc = "GPP_NT_VUT_SE"),
+        dir = "~/data/FLUXNET-2015_Tier1/20191024/DD/",
+        settings = settings_ingestr_fluxnet,
+        timescale = "d"
+      )
+    )
+  )
 
 save(p_model_fluxnet_calval,
      file = "data/p_model_fluxnet_calval.rda",
