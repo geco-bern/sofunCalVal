@@ -18,7 +18,7 @@ if(!grepl('eu-', Sys.info()['nodename'])){
 }
 
 # Process driver data -----------------------------------------------------
-
+message("-----------------------------------------------------")
 message("Formatting driver data:")
 
 # . set sites to ingest ----
@@ -190,7 +190,7 @@ save(p_model_fluxnet_drivers,
 
 
 # Prepare validation data -------------------------------------------------
-
+message("-----------------------------------------------------")
 message("Formating reference data:")
 
 # load site selection New Phytologist
@@ -209,7 +209,7 @@ calib_sites <- fluxnet_sites %>%
   pull(sitename)
 
 calib_sites <- fluxnet_sites %>%
-  dplyr::filter(sitename %in% calibsites)
+  dplyr::filter(sitename %in% calib_sites)
 
 # settings for data preparation
 settings_ingestr_fluxnet <- list(
@@ -239,8 +239,7 @@ p_model_fluxnet_calval <-
     )
   )
 
+message("-- saving data and DONE!")
 save(p_model_fluxnet_calval,
      file = "data/p_model_fluxnet_calval.rda",
      compress = "xz")
-
-
