@@ -17,11 +17,13 @@ if(!grepl('eu-', Sys.info()['nodename'])){
   stop("You are not on Euler, source data unavailable - abort abort abort!")
 }
 
-# set sites to ingest ----
+# Process driver data -----------------------------------------------------
+
+# . set sites to ingest ----
 fluxnet_sites <- ingestr::siteinfo_fluxnet2015 %>%
   dplyr::filter(!(sitename %in% c("DE-Akm", "US-ORv", "DE-RuS")))
 
-# grab fluxnet data ----
+# . grab fluxnet data ----
 df_fluxnet <- ingestr::ingest(
   siteinfo  = fluxnet_sites,
   source    = "fluxnet",
@@ -37,7 +39,7 @@ df_fluxnet <- ingestr::ingest(
   timescale = "d"
 )
 
-# get CRU data to complement fluxnet data ----
+# . get CRU data to complement fluxnet data ----
 df_cru <- ingestr::ingest(
   siteinfo  = fluxnet_sites,
   source    = "cru",
@@ -45,7 +47,7 @@ df_cru <- ingestr::ingest(
   dir       = "~/data/cru/ts_4.01/"
   )
 
-# merge data into one "meteo" data frame ----
+# . merge data into one "meteo" data frame ----
 df_meteo <- df_fluxnet %>%
   tidyr::unnest(data) %>%
   left_join(
@@ -56,7 +58,7 @@ df_meteo <- df_fluxnet %>%
   group_by(sitename) %>%
   tidyr::nest()
 
-# convert units and deal with missing data ----
+# . convert units and deal with missing data ----
 
 # WHAT WITH TMIN TMAX RAIN ETC
 #
@@ -85,7 +87,7 @@ df_meteo <- df_fluxnet %>%
 #   ungroup()
 #
 
-# grab MODIS FPAR data ----
+# . grab MODIS FPAR data ----
 settings_modis <- get_settings_modis(
   bundle            = "modis_fpar",
   data_path         = "~/data/modis_subsets/",
@@ -109,14 +111,14 @@ df_modis_fpar <- df_modis_fpar %>%
     data = purrr::map(data, ~rename(., fapar = modisvar_filled))
     )
 
-# grab CO2 data ----
+# . grab CO2 data ----
 df_co2 <- ingestr::ingest(
   fluxnet_sites,
   source  = "co2_mlo",
   verbose = FALSE
   )
 
-# set soil parameters ----
+# . set soil parameters ----
 df_soiltexture <- bind_rows(
   top    = tibble(
     layer = "top",
@@ -133,7 +135,7 @@ df_soiltexture <- bind_rows(
     fgravel = 0.1)
 )
 
-# set simulation parameters ----
+# . set simulation parameters ----
 params_siml <- list(
   spinup             = TRUE,
   spinupyears        = 10,
@@ -153,7 +155,7 @@ params_siml <- list(
   lgr4               = FALSE
 	)
 
-# combine all data into the rsofun driver data format ----
+# . combine all data into the rsofun driver data format ----
 p_model_fluxnet_drivers <- rsofun::collect_drivers_sofun(
   siteinfo       = fluxnet_sites,
   params_siml    = params_siml,
@@ -163,7 +165,49 @@ p_model_fluxnet_drivers <- rsofun::collect_drivers_sofun(
   df_soiltexture = df_soiltexture
   )
 
-# save data as a datafile, recognized by the package ----
+# . save data as a datafile, recognized by the package ----
 save(p_model_fluxnet_drivers,
      file = "data/p_model_fluxnet_drivers.rda",
      compress = "xz")
+
+
+# Prepare validation data -------------------------------------------------
+
+load("data/nphyt_sites.rda")
+
+calib_sites <- fluxnet_sites %>%
+  # excluded because fapar data could not be downloaded (WEIRD)
+  dplyr::filter(!(sitename %in% c("DE-Akm", "IT-Ro1"))) %>%
+  # excluded because no GPP data was found in FLUXNET file
+  dplyr::filter(!(sitename %in% c("AU-Wom"))) %>%
+  # excluded because some temperature data is missing
+  dplyr::filter(sitename != "FI-Sod") %>%
+  dplyr::filter( c4 %in% c(FALSE, NA) & classid != "CRO" & classid != "WET" ) %>%
+  dplyr::filter( sitename %in% nphyt_sites ) %>%
+  pull(sitename)
+
+# settings for data preparation
+settings_ingestr_fluxnet <- list(
+  dir_hh = "~/data/FLUXNET-2015_Tier1/20191024/HH/",
+  getswc = FALSE,
+  filter_ntdt = TRUE,
+  threshold_GPP = 0.8,
+  remove_neg = FALSE
+)
+
+p_model_fluxnet_calval <- ingestr::ingest(
+  siteinfo = fluxnet_sites %>%
+    dplyr::filter(sitename %in% calibsites),
+  source    = "fluxnet",
+  getvars = list(gpp = "GPP_NT_VUT_REF",
+                 gpp_unc = "GPP_NT_VUT_SE"),
+  dir = "~/data/FLUXNET-2015_Tier1/20191024/DD/",
+  settings = settings_ingestr_fluxnet,
+  timescale = "d"
+)
+
+save(p_model_fluxnet_calval,
+     file = "data/p_model_fluxnet_calval.rda",
+     compress = "xz")
+
+

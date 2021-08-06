@@ -14,23 +14,6 @@ library(knitr)
 # read in benchmarking driver data -----
 load("data/xxx.rda")
 
-# set calibration sites ----
-flue_sites <- readr::read_csv( "~/data/flue/flue_stocker18nphyt.csv" ) %>%
-              dplyr::filter( !is.na(cluster) ) %>%
-              distinct(site) %>%
-              pull(site)
-
-# select sites to calibrate -----
-
-# NOTE: THIS CAN PROBABLY BE DONE ON THE DRIVER SIDE.
-calibsites <- siteinfo_fluxnet2015 %>%
-  dplyr::filter(!(sitename %in% c("DE-Akm", "IT-Ro1"))) %>%  # excluded because fapar data could not be downloaded (WEIRD)
-  # dplyr::filter(!(sitename %in% c("AU-Wom"))) %>%  # excluded because no GPP data was found in FLUXNET file
-  dplyr::filter(sitename != "FI-Sod") %>%  # excluded because some temperature data is missing
-  dplyr::filter( c4 %in% c(FALSE, NA) & classid != "CRO" & classid != "WET" ) %>%
-  dplyr::filter( sitename %in% flue_sites ) %>%
-  pull(sitename)
-
 # set calibration settings ----
 settings_calib <- list(
   method              = "gensa",
@@ -45,30 +28,6 @@ settings_calib <- list(
                               soilm_par_a = list( lower=0.0,  upper=1.0, init=0.0 ),
                               soilm_par_b = list( lower=0.0,  upper=1.5, init=0.6 ) )
  )
-
-# GPP validation data preparation settings ----
-
-# MOVE TO DATA PREP SHOULDNT BE HERE
-settings_ingestr_fluxnet <- list(
-  dir_hh = "~/data/FLUXNET-2015_Tier1/20191024/HH/",
-  getswc = FALSE,
-  filter_ntdt = TRUE,
-  threshold_GPP = 0.8,
-  remove_neg = FALSE
-  )
-
-# format the validation data -----
-  df_fluxnet_gpp <- ingestr::ingest(
-    siteinfo = siteinfo_fluxnet2015 %>%
-      dplyr::filter(sitename %in% calibsites),
-    source    = "fluxnet",
-    getvars = list(gpp = "GPP_NT_VUT_REF",
-                   gpp_unc = "GPP_NT_VUT_SE"),
-    dir = "~/data/FLUXNET-2015_Tier1/20191024/DD/",
-    settings = settings_ingestr_fluxnet,
-    timescale = "d"
-    )
-#save(ddf_fluxnet_gpp, file = filn)
 
 # calibrate model parameters ----
 set.seed(1982)
