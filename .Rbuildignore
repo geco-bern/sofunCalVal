@@ -4,14 +4,12 @@
 ^pkgdown$
 ^docs$
 ^analysis$
-^data-raw$
-^vignettes$
+
+# data prep and benchmarking code
+^data/.*.R$
 ^benchmarking$
-^Rscripts$
-^Rold$
 
 # R-markdown files in the root folder.
-^.*.ods$
 ^LICENSE.*$
 ^CONDUCT\.md$
 ^NEWS\.md$
