@@ -14,7 +14,6 @@ library(ingestr)
 load("data/p_model_fluxnet_drivers.rda")
 load("data/p_model_fluxnet_calval.rda")
 
-
 # fix the tmin / tmax issue for now ----
 # p_model_fluxnet_drivers <- p_model_fluxnet_drivers %>%
 #   mutate(forcing = purrr::map(forcing,

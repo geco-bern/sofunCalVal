@@ -31,12 +31,12 @@ oob_calib_eval_sofun <- function(
   ddf_obs_calib,
   obs_eval,
   overwrite
-  ){
+  ) {
 
   # Get list of results from out-of-bag calibration
   out_oob <- purrr::map(
     as.list(settings_calib$sitenames),
-    ~oob_calib_eval_sofun_bysite(
+    ~ oob_calib_eval_sofun_bysite(
       .,
       settings_eval,
       settings_sims,
@@ -50,20 +50,20 @@ oob_calib_eval_sofun <- function(
   names(out_oob) <- settings_calib$sitenames
 
   # add evaluation result of all predicted data pooled
-  extract_ddf_bysite <- function(site, out_oob){
-    if (identical(NA, out_oob[[site]])){
+  extract_ddf_bysite <- function(site, out_oob) {
+    if (identical(NA, out_oob[[site]])) {
       ddf <- NA
     } else {
       ddf <- out_oob[[site]][[settings_calib$targetvars]]$fluxnet2015$data$ddf %>%
         dplyr::select(date, mod) %>%
-        dplyr::rename( !!settings_calib$targetvars := mod)
+        dplyr::rename(!!settings_calib$targetvars := mod)
     }
     return(ddf)
   }
   mod <- purrr::map(
     as.list(settings_calib$sitenames),
-    ~extract_ddf_bysite(., out_oob)
-    ) %>%
+    ~ extract_ddf_bysite(., out_oob)
+  ) %>%
     bind_rows()
 
   out_oob$AALL <- eval_sofun(
@@ -72,7 +72,8 @@ oob_calib_eval_sofun <- function(
     settings_sims,
     obs_eval = obs_eval,
     overwrite = TRUE,
-    light = TRUE )
+    light = TRUE
+  )
 
   return(out_oob)
 }
@@ -105,25 +106,22 @@ oob_calib_eval_sofun_bysite <- function(
   df_drivers,
   ddf_obs_calib,
   obs_eval,
-  overwrite ){
-
+  overwrite
+  ) {
   message(paste("oob_calib_eval_sofun_bysite() for site", evalsite))
 
-  dirn <- paste0( settings_calib$dir_results, "/oob_", settings_calib$name)
+  dirn <- paste0(settings_calib$dir_results, "/oob_", settings_calib$name)
 
-  if (!dir.exists(dirn)){
+  if (!dir.exists(dirn)) {
     system(paste0("mkdir -p ", dirn))
   }
   outfil <- paste0(dirn, "/out_eval_leftout_", evalsite, ".Rdata")
 
 
-  if (file.exists(outfil) && !overwrite){
-
+  if (file.exists(outfil) && !overwrite) {
     message("loading file...")
     load(outfil)
-
   } else {
-
     message("calibrating with left-out site...")
 
     # Adjust calibration settings
@@ -137,14 +135,14 @@ oob_calib_eval_sofun_bysite <- function(
 
     # Get data for evaluation
     breaks_xdf <- obs_eval$breaks_xdf
-    extract_obs_evalsite <- function(df, evalsite){
+    extract_obs_evalsite <- function(df, evalsite) {
       df <- df %>%
         dplyr::filter(sitename == evalsite)
       return(df)
     }
     obs_evalsite <- purrr::map(
       obs_eval[c("ddf", "xdf", "mdf", "adf")],
-      ~extract_obs_evalsite(., evalsite)
+      ~ extract_obs_evalsite(., evalsite)
     )
     obs_evalsite$breaks_xdf <- breaks_xdf
 
@@ -158,7 +156,7 @@ oob_calib_eval_sofun_bysite <- function(
       settings_calib,
       dplyr::filter(df_drivers, sitename != evalsite),
       ddf_obs = ddf_obs_calibsites
-      )
+    )
 
     settings_eval$sitenames <- evalsite
 
@@ -170,7 +168,7 @@ oob_calib_eval_sofun_bysite <- function(
       vpdstress_par_a = settings_calib$par_opt[["vpdstress_par_a"]],
       vpdstress_par_b = settings_calib$par_opt[["vpdstress_par_b"]],
       vpdstress_par_m = settings_calib$par_opt[["vpdstress_par_m"]]
-      )
+    )
 
     # settings_sims$sitenames <- evalsite
     mod <- runread_sofun_f(
@@ -178,7 +176,7 @@ oob_calib_eval_sofun_bysite <- function(
       params_modl = params_modl,
       makecheck = TRUE,
       parallel = FALSE
-      ) %>%
+    ) %>%
       rename(id = sitename) %>%
       unnest(out_sofun)
 
@@ -191,15 +189,14 @@ oob_calib_eval_sofun_bysite <- function(
         obs_eval = obs_evalsite,
         overwrite = TRUE,
         light = TRUE
-        )
       )
-    if (class(out_eval) == "try-error"){
+    )
+    if (class(out_eval) == "try-error") {
       out_eval <- NA
     }
 
     ## write to file
     save(out_eval, file = outfil)
-
   }
 
   return(out_eval)
