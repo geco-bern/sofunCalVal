@@ -16,20 +16,26 @@ oob_calib_eval_sofun(
 )
 }
 \arguments{
-\item{settings_calib}{A list containing model calibration settings. See vignette_rsofun.pdf for more information and examples.}
+\item{settings_calib}{A list containing model calibration settings.
+See vignette_rsofun.pdf for more information and examples.}
 
-\item{settings_eval}{A list specifying evaluation settings 
+\item{settings_eval}{A list specifying evaluation settings
 (see vignette eval_sofun.pdf for more information and examples)}
 
-\item{settings_sims}{A list containing model simulation settings from \code{\link{prepare_setup_sofun}}.  See vignette_rsofun.pdf for more information and examples.}
+\item{settings_sims}{A list containing model simulation settings
+from \code{\link{prepare_setup_sofun}}.
+See vignette_rsofun.pdf for more information and examples.}
 
-\item{settings_input}{A list containing model input settings. See vignette_rsofun.pdf for more information and examples.}
+\item{settings_input}{A list containing model input settings.
+See vignette_rsofun.pdf for more information and examples.}
 
 \item{df_drivers}{xxx}
 
-\item{ddf_obs_calib}{A data frame containing observational data used for model calibration. Created by function \code{get_obs_calib()}}
+\item{ddf_obs_calib}{A data frame containing observational data used for
+model calibration. Created by function \code{get_obs_calib()}}
 
-\item{obs_eval}{A data frame containing observational data used for model evaluation Created by function \code{get_obs_eval()}}
+\item{obs_eval}{A data frame containing observational data used for
+model evaluation Created by function \code{get_obs_eval()}}
 
 \item{overwrite}{A boolean, defaults to \code{FALSE}.}
 }
@@ -37,10 +43,6 @@ oob_calib_eval_sofun(
 A nested list of objects returned by \code{\link{eval_sofun}}.
 }
 \description{
-Wraps around calib_sofun() to calibrate out-of-bag (with one left-out site) and returns the evaluation result 
-done for the left-out site.
-}
-\examples{
-xxx
-
+Wraps around calib_sofun() to calibrate out-of-bag (with one left-out site)
+ and returns the evaluation result done for the left-out site.
 }

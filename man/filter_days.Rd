@@ -21,5 +21,4 @@ Filters observational data points for \code{gpp_obs} (hard-coded) in one data so
 }
 \examples{
 xxx
-
 }
