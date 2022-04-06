@@ -18,6 +18,5 @@ A single row of a data frame (tibble) with columns corresponding to statistics
 Returns multiple model performance statistics
 }
 \examples{
-stats <- get_stats( mod, obs )
-
+stats <- get_stats(mod, obs)
 }
