@@ -14,7 +14,7 @@ jobs:
       - uses: r-lib/actions/setup-r@v1
       - uses: r-lib/actions/setup-pandoc@v1
       - name: Install rmarkdown
-        run: Rscript -e 'install.packages(c("rmarkdown","pkgdown","tidyverse","rpmodel"))'
+        run: Rscript -e 'install.packages(c("devtools","rmarkdown","pkgdown","tidyverse","rpmodel"))'
       - name: Install sofunCalVal
         run: Rscript -e 'devtools::install_github("computationales/sofunCalVal")'
       - name: Render site
