@@ -50,4 +50,3 @@ Suggests:
 VignetteBuilder: knitr
 Remotes:
     computationales/ingestr
-    stineb/LSD
