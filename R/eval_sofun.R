@@ -584,7 +584,7 @@ eval_sofun_byvar <- function(varnam,
 
         if (nrow(meandf) > 2) {
           out <- meandf %>%
-            rbeni::analyse_modobs2("mod", "obs", type = "points") +
+            analyse_modobs2("mod", "obs", type = "points") +
             labs(title = "Spatial correlation")
         } else {
           modobs_spatial <- NA
@@ -687,7 +687,7 @@ eval_sofun_byvar <- function(varnam,
         par(las = 1)
         modobs_anomalies_annual <- with(
           iavdf,
-          rbeni::analyse_modobs2(
+          analyse_modobs2(
             mod,
             obs,
             heat = FALSE,
@@ -727,7 +727,7 @@ eval_sofun_byvar <- function(varnam,
             )
           )
         }
-        modobs_anomalies_daily <- with(idvdf, rbeni::analyse_modobs2(
+        modobs_anomalies_daily <- with(idvdf, analyse_modobs2(
           mod,
           obs,
           col = rgb(0, 0, 0, 0.05),
@@ -770,7 +770,7 @@ eval_sofun_byvar <- function(varnam,
         # source("analyse_modobs.R")
         if (makepdf && !dir.exists(settings$dir_figs)) system(paste0("mkdir -p ", settings$dir_figs))
         if (makepdf) pdf(paste0(settings$dir_figs, "/modobs_anomalies_xdaily.pdf"))
-        modobs_anomalies_xdaily <- with(ixvdf, rbeni::analyse_modobs2(
+        modobs_anomalies_xdaily <- with(ixvdf, analyse_modobs2(
           mod,
           obs,
           col = rgb(0, 0, 0, 0.05),
@@ -812,7 +812,7 @@ eval_sofun_byvar <- function(varnam,
         if (makepdf) pdf(paste0(settings$dir_figs, "/modobs_meandoy_", pattern, ".pdf"))
         modobs_meandoy <- with(
           meandoydf,
-          rbeni::analyse_modobs2(
+          analyse_modobs2(
             mod_mean,
             obs_mean,
             heat = TRUE,
@@ -857,7 +857,7 @@ eval_sofun_byvar <- function(varnam,
         if (makepdf) pdf(paste0(settings$dir_figs, "/modobs_meanxoy.pdf"))
         modobs_meanxoy <- with(
           meanxoydf,
-          rbeni::analyse_modobs2(
+          analyse_modobs2(
             mod_mean,
             obs_mean,
             heat = TRUE,
@@ -886,7 +886,7 @@ eval_sofun_byvar <- function(varnam,
       ## observed vs. modelled
       plot_modobs_daily <- function() {
         modobs_ddf <- ddf %>%
-          rbeni::analyse_modobs2(mod = "mod", obs = "obs", type = "density")
+          analyse_modobs2(mod = "mod", obs = "obs", type = "density")
 
         gg <- modobs_ddf$gg +
           labs(
@@ -904,7 +904,7 @@ eval_sofun_byvar <- function(varnam,
       ## observed vs. modelled
       plot_modobs_monthly <- function() {
         modobs_mdf <- mdf %>%
-          rbeni::analyse_modobs2(mod = "mod", obs = "obs", type = "heat")
+          analyse_modobs2(mod = "mod", obs = "obs", type = "heat")
 
         gg <- modobs_mdf$gg +
           labs(
@@ -922,7 +922,7 @@ eval_sofun_byvar <- function(varnam,
       ## observed vs. modelled
       plot_modobs_annual <- function() {
         modobs_adf <- adf %>%
-          rbeni::analyse_modobs2(mod = "mod", obs = "obs", type = "points")
+          analyse_modobs2(mod = "mod", obs = "obs", type = "points")
 
         gg <- modobs_adf$gg +
           labs(
@@ -941,7 +941,7 @@ eval_sofun_byvar <- function(varnam,
       ## observed vs. modelled
       plot_modobs_xdaily <- function() {
         modobs_ddf <- xdf %>%
-          rbeni::analyse_modobs2(mod = "mod", obs = "obs", type = "heat")
+          analyse_modobs2(mod = "mod", obs = "obs", type = "heat")
 
         gg <- modobs_ddf$gg +
           labs(
