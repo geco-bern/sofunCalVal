@@ -25,6 +25,7 @@ Depends:
     R (>= 4.0)
 Imports:
     rpmodel,
+    yardstick,
     ggplot2,
     readr,
     dplyr,
