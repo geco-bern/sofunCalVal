@@ -3,7 +3,7 @@ on:
      branches:
        - main
 
-name: deploywebsite
+name: deploy_website
 
 jobs:
   blogdown:
@@ -14,7 +14,9 @@ jobs:
       - uses: r-lib/actions/setup-r@v1
       - uses: r-lib/actions/setup-pandoc@v1
       - name: Install rmarkdown
-        run: Rscript -e 'install.packages(c("rmarkdown","blogdown","tidyverse"))'
+        run: Rscript -e 'install.packages(c("rmarkdown","pkgdown","tidyverse","rpmodel"))'
+      - name: Install sofunCalVal
+        run: Rscript -e 'devtools::install_github("computationales/sofunCalVal")'
       - name: Render site
         run: Rscript -e 'pkgdown::build_site()'
       - uses: actions/upload-artifact@v1
