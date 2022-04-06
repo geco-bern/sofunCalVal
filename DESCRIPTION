@@ -4,26 +4,29 @@ Title: Calibrate and validate (r)SOFUN
 Version: 1.0
 Authors@R: c(
             person(
+               family = "Hufkens",
+               given = "Koen",
+               email = "koen.hufkens@gmail.com",
+               role = c("aut", "cre"),
+               comment = c(ORCID = "0000-0002-5070-8109")),
+            person(
               family = "Benjamin",
               given = "Stocker",
               email = "benjamin.stocker@gmail.com",
               comment = c(ORCID = "0000-0002-5070-8109"),
-              role = c("aut", "cre")),
-            person(
-               family = "Hufkens",
-               given = "Koen",
-               email = "koen.hufkens@gmail.com",
-               role = c("ctb"),
-               comment = c(ORCID = "0000-0002-5070-8109"))
+              role = c("ctb"))
            )
 Maintainer: The package maintainer <yourself@somewhere.net>
 Description: Calibration and validation functionality for the rsofun package.
   Additional tools for plotting and benchmarking are also provided.
-URL: https://github.com/stineb/sofunCalVal
+URL: https://github.com/computationales/sofunCalVal
 License: GPL-3
 Depends:
-    R (>= 3.6)
+    R (>= 4.0)
 Imports:
+    rpmodel,
+    ggplot2,
+    readr,
     dplyr,
     purrr,
     tidyr,
@@ -34,17 +37,15 @@ Imports:
     grDevices,
     multidplyr,
     stats,
-    utils
+    utils,
+    knitr
 LazyData: true
 ByteCompile: true
 RoxygenNote: 7.1.2
 Suggests:
     rmarkdown,
     covr,
-    testthat,
-    knitr
+    testthat
 VignetteBuilder: knitr
 Remotes:
-    stineb/ingestr,
-    stineb/rsofun,
-    stineb/rbeni
+    computationales/ingestr
