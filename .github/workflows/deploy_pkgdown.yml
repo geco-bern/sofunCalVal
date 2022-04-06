@@ -16,7 +16,7 @@ jobs:
       - name: Install rmarkdown
         run: Rscript -e 'install.packages(c("devtools","rmarkdown","pkgdown","tidyverse","rpmodel"))'
       - name: Install sofunCalVal
-        run: Rscript -e 'devtools::install_github("computationales/sofunCalVal")'
+        run: Rscript -e 'devtools::install_github("khufkens/sofunCalVal")'
       - name: Render site
         run: Rscript -e 'pkgdown::build_site()'
       - uses: actions/upload-artifact@v1
