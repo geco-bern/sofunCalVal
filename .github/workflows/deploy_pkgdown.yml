@@ -7,7 +7,7 @@ name: deploy_website
 
 jobs:
   blogdown:
-    name: Render-Blog
+    name: render-site
     runs-on: macOS-latest
     steps:
       - uses: actions/checkout@v1
