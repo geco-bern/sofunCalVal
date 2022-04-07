@@ -6,6 +6,8 @@ on:
   release:
     types: [published]
   workflow_dispatch:
+    types:
+      -render
 
 name: pkgdown
 
