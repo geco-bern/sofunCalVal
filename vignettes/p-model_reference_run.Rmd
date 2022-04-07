@@ -40,7 +40,7 @@ load("../data/df_drivers_fluxnet2015.rda")
 load("../data/obs_eval_fluxnet2015.rda")
 
 # convert data to adhere to new p-model naming conventions
-drivers <- df_drivers_fluxnet2015_allsites %>%
+drivers <- df_drivers_fluxnet2015 %>%
   dplyr::select(sitename, forcing) %>% 
   unnest(forcing) %>% 
   dplyr::filter(!(month(date)==2 & mday(date)==29)) %>% 
@@ -59,7 +59,7 @@ drivers <- df_drivers_fluxnet2015_allsites %>%
   nest() %>%
   rename(forcing = data) %>% 
   right_join(
-    df_drivers_fluxnet2015_allsites %>% 
+    df_drivers_fluxnet2015 %>% 
       dplyr::select(-forcing),
     by = "sitename"
   ) %>% 
