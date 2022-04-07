@@ -34,9 +34,7 @@ flue_sites <- readr::read_csv( "../data/flue_stocker18nphyt.csv" ) %>%
               pull(site)
 
 # load fluxnet driver data (prepared)
-load("../data/df_drivers_fluxnet2015_allsites.rda")
-
-print(ls())
+load("../data/df_drivers_fluxnet2015.rda")
 
 # load observational data (prepared)
 load("../data/obs_eval_fluxnet2015.rda")

@@ -34,9 +34,7 @@ flue_sites <- readr::read_csv( "../data/flue_stocker18nphyt.csv" ) %>%
               pull(site)
 
 # load fluxnet driver data (prepared)
-load("../data/df_drivers_fluxnet2015_allsites.rda")
-
-print(ls())
+load("../data/df_drivers_fluxnet2015.rda")
 
 # load observational data (prepared)
 load("../data/obs_eval_fluxnet2015.rda")
@@ -49,10 +47,10 @@ drivers <- df_drivers_fluxnet2015_allsites %>%
   
   ## model requires flux per seconds now
   mutate(
-    #prec = prec / (60*60*24),
-    #ppfd = ppfd / (60*60*24),
-    rainf = prec,
-    snowf = 0,
+    prec = prec / (60*60*24),
+    ppfd = ppfd / (60*60*24),
+    rain = prec,
+    snow = 0,
     tmin = temp,
     tmax = temp
   ) %>% 
