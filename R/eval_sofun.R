@@ -833,7 +833,9 @@ eval_sofun_byvar <- function(varnam,
         system("mkdir -p fig/meandoy_bysite")
         # mylist <- readr::read_csv("myselect_fluxnet.csv") %>% dplyr::filter( use==1 ) %>% dplyr::select( -use ) %>% unlist()
         mylist <- c("AU-Tum", "CA-NS3", "CA-NS6", "CA-Obs", "DE-Geb", "DE-Hai", "DE-Kli", "FI-Hyy", "FR-Fon", "FR-LBr", "FR-Pue", "IT-Cpz", "NL-Loo", "US-Ha1", "US-MMS", "US-UMB", "US-WCr")
-        tmp <- purrr::map(dplyr::filter(meandoydf_stats, sitename %in% mylist)$data, ~ plot_by_doy_bysite(., makepdf = makepdf))
+        tmp <- purrr::map(
+          dplyr::filter(meandoydf_stats, sitename %in% mylist)$data,
+          ~plot_by_doy_bysite(., makepdf = makepdf))
       }
 
 
@@ -843,7 +845,9 @@ eval_sofun_byvar <- function(varnam,
       plot_by_doy_allzones <- function(dashed = NA, makepdf = FALSE, pattern = "") { # using meandoydf_byclim_stats
         system("mkdir -p fig/meandoy_byzone")
         # tmp <- purrr::map( meandoydf_byclim_stats$data, ~plot_by_doy_byzone(., dashed = dashed, makepdf = makepdf, pattern = pattern ) )
-        tmp <- purrr::map(as.list(seq(nrow(meandoydf_byclim_stats))), ~ plot_by_doy_byzone(meandoydf_byclim_stats$data[[.]], makepdf = makepdf, pattern = pattern)) # dashed = dashed$data[[.]]
+        tmp <- purrr::map(
+          as.list(seq(nrow(meandoydf_byclim_stats))),
+          ~plot_by_doy_byzone(meandoydf_byclim_stats$data[[.]], makepdf = makepdf, pattern = pattern)) # dashed = dashed$data[[.]]
       }
 
 
