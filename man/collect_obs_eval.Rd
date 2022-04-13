@@ -30,14 +30,16 @@ collect_obs_eval(
 \item{hhdf}{A nested data frame with rows for sites and time series (half-hourly) for each site nested inside the column \code{data}.}
 }
 \value{
-A list containing nested data frames of observed values aggregated to several temporal scales (ddf for daily, xdf for X-daily 
+A list containing nested data frames of observed values aggregated to several temporal scales (ddf for daily, xdf for X-daily
 (determined by argument \code{agg}), mdf for monthly, adf for annual).
 }
 \description{
-Gets observational data for model evaluation, given the benchmarking variable, and data source used 
+Gets observational data for model evaluation, given the benchmarking variable, and data source used
 for the evaluation. This information is specified in the evaluation settings (argument \code{settings}).
 }
 \examples{
-\dontrun{obs <- collect_obs_eval( settings = NULL, adf = NULL, mdf = NULL, ddf = NULL, hrdf = NULL, hhdf = NULL, agg = 8 )}
+\dontrun{
+obs <- collect_obs_eval(settings = NULL, adf = NULL, mdf = NULL, ddf = NULL, hrdf = NULL, hhdf = NULL, agg = 8)
+}
 
 }
