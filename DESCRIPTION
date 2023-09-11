@@ -49,4 +49,5 @@ Suggests:
     testthat
 VignetteBuilder: knitr
 Remotes:
-    computationales/ingestr
+    geco-bern/ingestr
+    stineb/LSD
