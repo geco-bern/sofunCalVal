@@ -16,12 +16,12 @@ library(readr)
 library(ggplot2)
 library(lubridate)
 library(knitr)
+library(LSD)
 source("../R/eval_sofun.R")
 source("../R/get_stats.R")
 
 set.seed(42)
 
-devtools::install_github("stineb/LSD")
 devtools::install_github("computationales/rsofun@v4.2")
 install.packages("rpmodel")
 library(rsofun)
