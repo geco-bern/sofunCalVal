@@ -27,7 +27,7 @@ Imports:
     rpmodel,
     yardstick,
     ggplot2,
-    ggtheme,
+    ggthemes,
     readr,
     dplyr,
     purrr,
