@@ -51,6 +51,7 @@ run_latest_versions <- function(){
   for (version_nr in latest_releases) {
 
     ## Install rsofun version ----
+    if ("rsofun" %in% installed.packages()) remove.packages("rsofun")
     rsofun_version <- paste0("computationales/rsofun@", version_nr)
     devtools::install_github(rsofun_version,
                              upgrade = "never",
