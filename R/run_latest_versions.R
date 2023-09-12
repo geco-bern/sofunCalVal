@@ -21,13 +21,13 @@ run_latest_versions <- function(){
   url <- "https://api.github.com/repos/geco-bern/rsofun/tags"
 
   # Make the API request
-  response <- GET(url)
+  response <- httr::GET(url)
 
   # Check if the request was successful (status code 200)
   if (grepl("OK", httr::http_status(response)$message)) {
 
     # Parse the JSON response
-    tags_data <- jsonlite::fromJSON(content(response, "text"))
+    tags_data <- jsonlite::fromJSON(url)
 
     # Extract the latest three releases
     latest_releases <- head(tags_data, n_tags)$name
