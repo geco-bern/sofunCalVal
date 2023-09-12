@@ -15,6 +15,9 @@ vignette: >
 #' - Maybe make security checks that current formatting of data and so on only applies to v4.0-4.3
 #' - Maybe add comparison of latest and second-latest runs?
 #' - Add description
+#' - eval_sofun() returns large objects (~200 Mb) because the nested ggplots holds
+#' replicates the input data, blowing up its size. Instead, eval_sofun() could only
+#' return the relevant plots, or the run_latest_versions() could do that.
 ```
 
 This vignette pulls the latest 
