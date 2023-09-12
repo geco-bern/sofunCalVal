@@ -51,6 +51,3 @@ Suggests:
     covr,
     testthat
 VignetteBuilder: knitr
-Remotes:
-    geco-bern/ingestr
-    stineb/LSD
