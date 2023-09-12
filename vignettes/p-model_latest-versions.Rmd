@@ -1,0 +1,115 @@
+---
+title: "P-model: Latest Versions"
+# author: "Koen Hufkens"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{P-model: Latest Versions}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\usepackage[utf8]{inputenc}
+---
+
+```{r, include=FALSE, echo=FALSE}
+
+#' TODOS:
+#' - Maybe create "call_tag" function
+#' - Maybe make security checks that current formatting of data and so on only applies to v4.0-4.3
+#' - Maybe add comparison of latest and second-latest runs?
+#' - Add description
+```
+
+This vignette pulls the latest 
+
+```{r warning=FALSE, message=FALSE, error=FALSE, include = FALSE}
+# load required libraries
+library(dplyr)
+library(tidyr)
+library(readr)
+library(ggplot2)
+library(lubridate)
+library(knitr)
+library(ggthemes)
+library(httr)
+library(jsonlite)
+
+source("../R/eval_sofun.R")
+source("../R/get_stats.R")
+source("../R/analyse_modobs2.R")
+source("../R/run_latest_versions.R")
+
+set.seed(42)
+```
+
+```{r warning=FALSE, message=FALSE, error=FALSE, include = FALSE}
+latest_versions <- run_latest_versions()
+tags <- names(latest_versions[1:3])
+```
+
+```{r warning=FALSE, message=FALSE, error=FALSE, include = FALSE}
+# latest_versions <- readRDS(here::here("data/pascal_latest_versions_1-2.rds"))
+# tags <- names(latest_versions[1:2])
+```
+
+## 8-daily means
+```{r message = FALSE, warning = FALSE, echo = FALSE, fig.width=5, fig.height=5}
+tag <- tags[1]
+cat(paste0("Tag: ", tag))
+latest_versions[[tag]]$gpp$fluxnet$plot$gg_modobs_xdaily
+
+tag <- tags[2]
+cat(paste0("Tag: ", tag))
+latest_versions[[tag]]$gpp$fluxnet$plot$gg_modobs_xdaily
+
+tag <- tags[3]
+cat(paste0("Tag: ", tag))
+latest_versions[[tag]]$gpp$fluxnet$plot$gg_modobs_xdaily
+```
+
+##  Metrics
+```{r message = FALSE, warning = FALSE, echo = FALSE}
+tag <- tags[1]
+cat(paste0("Tag: ", tag))
+latest_versions[[tag]]$gpp$fluxnet$metrics |> 
+          dplyr::bind_rows(.id = "Level") |> 
+          knitr::kable()
+tag <- tags[2]
+cat(paste0("Tag: ", tag))
+latest_versions[[tag]]$gpp$fluxnet$metrics |> 
+          dplyr::bind_rows(.id = "Level") |> 
+          knitr::kable()
+
+tag <- tags[3]
+cat(paste0("Tag: ", tag))
+latest_versions[[tag]]$gpp$fluxnet$metrics |> 
+          dplyr::bind_rows(.id = "Level") |> 
+          knitr::kable()
+```
+
+## Seasonal Cycles
+```{r message = FALSE, warning = FALSE, echo = FALSE, fig.width=5, fig.height=5}
+tag <- tags[1]
+cat(paste0("Tag: ", tag))
+latest_versions[[tag]]$seasonal_cycle
+
+tag <- tags[2]
+cat(paste0("Tag: ", tag))
+latest_versions[[tag]]$seasonal_cycle
+
+tag <- tags[3]
+cat(paste0("Tag: ", tag))
+latest_versions[[tag]]$seasonal_cycle
+```
+
+## Drought Response
+```{r message = FALSE, warning = FALSE, echo = FALSE, fig.width=5, fig.height=5}
+tag <- tags[1]
+cat(paste0("Tag: ", tag))
+latest_versions[[tag]]$drought_response
+
+tag <- tags[2]
+cat(paste0("Tag: ", tag))
+latest_versions[[tag]]$drought_response
+
+tag <- tags[3]
+cat(paste0("Tag: ", tag))
+latest_versions[[tag]]$drought_response
+```
