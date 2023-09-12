@@ -39,7 +39,10 @@ Imports:
     multidplyr,
     stats,
     utils,
-    knitr
+    knitr,
+    here,
+    jsonlite,
+    httr
 LazyData: true
 ByteCompile: true
 RoxygenNote: 7.1.2
