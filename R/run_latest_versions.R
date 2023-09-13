@@ -36,12 +36,31 @@ run_latest_versions <- function(){
     latest_releases <- latest_releases[grep("4", latest_releases)]
 
     # Print the latest releases
-    print(latest_releases)
+    # print(latest_releases)
 
   } else {
     # Handle the case where the request was not successful
     stop("API request failed with status code:", http_status(response)$message, "\n")
   }
+
+  # Safety Check ----
+  if (
+    any(grepl("v3", latest_releases)) |
+    any(grepl("v4.4", latest_releases))
+    ) {
+    stop(
+      paste0(
+        "\n--------------------------------------------------------------------------\n",
+        "Function `run_latest_versions():\n",
+        "Running latest versions has only been tested for v4.0 - v4.3.\n",
+        "If a newer version (v4.4 or higher) should be added, make sure to format\n",
+        "driver data accordingly, and adjust this error statement\n",
+        "--------------------------------------------------------------------------\n"
+        )
+    )
+  }
+
+  stop("")
 
   # Prepare output list ----
   # Make list to contain all evaluation outputs
