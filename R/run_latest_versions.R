@@ -7,9 +7,6 @@
 #' @return A nested list following the structure of eval_sofun(), plus two
 #' additional plots for the seasonal cycles and the drought response.
 #' @export
-#'
-#' @examples xxx
-#'
 
 run_latest_versions <- function(){
 
@@ -59,8 +56,6 @@ run_latest_versions <- function(){
         )
     )
   }
-
-  stop("")
 
   # Prepare output list ----
   # Make list to contain all evaluation outputs
