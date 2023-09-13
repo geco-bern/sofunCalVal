@@ -9,22 +9,30 @@ vignette: >
 ---
 
 ```{r setup, include = FALSE}
-# load required libraries
+# Install packages
+# if ("rsofun" %in% installed.packages()) remove.packages("rsofun")
+devtools::install_github("geco-bern/rsofun", upgrade = "never", force = TRUE)
+devtools::install_github("geco-bern/rpmodel", upgrade = "never", force = TRUE)
+# install.packages("rpmodel")
+
+# Load packages
+library(rpmodel)
+library(rsofun)
 library(dplyr)
 library(tidyr)
 library(readr)
 library(ggplot2)
 library(lubridate)
 library(knitr)
+library(ggthemes)
+
+# Load functions
 source("../R/eval_sofun.R")
 source("../R/get_stats.R")
+source("../R/analyse_modobs2.R")
 
+# Set seed
 set.seed(42)
-
-devtools::install_github("stineb/LSD")
-devtools::install_github("computationales/rsofun")
-install.packages("rpmodel")
-library(rsofun)
 
 # only select the sites from the New Phytologist paper
 # load site list and filter on these (see below)

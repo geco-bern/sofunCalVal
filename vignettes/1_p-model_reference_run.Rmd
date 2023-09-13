@@ -9,22 +9,29 @@ vignette: >
 ---
 
 ```{r setup, include = FALSE}
-# load required libraries
+# Install packages
+# if ("rsofun" %in% installed.packages()) remove.packages("rsofun")
+devtools::install_github("geco-bern/rsofun@v4.0", upgrade = "never", force = TRUE)
+devtools::install_github("geco-bern/rpmodel", upgrade = "never", force = TRUE)
+
+# Load packages
+library(rpmodel)
+library(rsofun)
 library(dplyr)
 library(tidyr)
 library(readr)
 library(ggplot2)
 library(lubridate)
 library(knitr)
-library(LSD)
+library(ggthemes)
+
+# Load functions
 source("../R/eval_sofun.R")
 source("../R/get_stats.R")
+source("../R/analyse_modobs2.R")
 
+# Set seed
 set.seed(42)
-
-devtools::install_github("computationales/rsofun@v4.2")
-install.packages("rpmodel")
-library(rsofun)
 
 # only select the sites from the New Phytologist paper
 # load site list and filter on these (see below)
@@ -43,7 +50,7 @@ load("../data/obs_eval_fluxnet2015.rda")
 drivers <- df_drivers_fluxnet2015 %>%
   dplyr::select(sitename, forcing) %>% 
   unnest(forcing) %>% 
-  dplyr::filter(!(month(date)==2 & mday(date)==29)) %>% 
+  dplyr::filter(!(month(date) == 2 & mday(date) == 29)) %>% 
   
   ## model requires flux per seconds now
   mutate(
@@ -166,8 +173,8 @@ out_eval$gpp$fluxnet$data$meandoydf_byclim %>%
   theme_gray() +
   theme(legend.position = "bottom") +
   scale_color_manual(
-    name="Setup: ",
-    values=c("red", "black")
+    name = "Setup: ",
+    values = c("red", "black")
     )
 ```
 
@@ -183,11 +190,11 @@ df_dday_agg <- eval_droughtresponse(
       site = sitename
       ), 
   path_flue = "../data/flue_stocker18nphyt.csv",
-  before=20,
-  after=105,
+  before = 20,
+  after = 105,
   leng_threshold = 10, 
-  nbins=10, 
-  do_norm=TRUE
+  nbins = 10, 
+  do_norm = TRUE
   )
 
 usecol = colorRampPalette( c("wheat3", "white") )( 5 )[2]

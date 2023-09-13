@@ -19,14 +19,14 @@ Authors@R: c(
 Maintainer: The package maintainer <yourself@somewhere.net>
 Description: Calibration and validation functionality for the rsofun package.
   Additional tools for plotting and benchmarking are also provided.
-URL: https://github.com/computationales/sofunCalVal
+URL: https://github.com/geco-bern/sofunCalVal
 License: GPL-3
 Depends:
     R (>= 4.0)
 Imports:
-    rpmodel,
     yardstick,
     ggplot2,
+    ggthemes,
     readr,
     dplyr,
     purrr,
@@ -39,7 +39,10 @@ Imports:
     multidplyr,
     stats,
     utils,
-    knitr
+    knitr,
+    here,
+    jsonlite,
+    httr
 LazyData: true
 ByteCompile: true
 RoxygenNote: 7.1.2
