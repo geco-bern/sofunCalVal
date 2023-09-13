@@ -12,8 +12,7 @@ vignette: >
 # Install packages
 # if ("rsofun" %in% installed.packages()) remove.packages("rsofun")
 devtools::install_github("geco-bern/rsofun", upgrade = "never", force = TRUE)
-devtools::install_github("geco-bern/rpmodel", upgrade = "never", force = TRUE)
-# install.packages("rpmodel")
+install.packages("rpmodel")
 
 # Load packages
 library(rpmodel)
