@@ -12,19 +12,23 @@ vignette: >
 
 ```{r, include=FALSE, echo=FALSE}
 
-#' TODOS:
-#' - Maybe create "call_tag" function
-#' - Maybe make security checks that current formatting of data and so on only applies to v4.0-4.3
-#' - Maybe add comparison of latest and second-latest runs?
-#' - Add description
+#' Open Tasks:
+#' - One could compare the outputs of the most recent and second recent version
+#'   directly. Could be done by comparing all metrics in the outputed table and
+#'   create a new table showing percentual changes.
+#'   
 #' - eval_sofun() returns large objects (~200 Mb) because the nested ggplots holds
-#' replicates the input data, blowing up its size. Instead, eval_sofun() could only
-#' return the relevant plots, or the run_latest_versions() could do that.
+#'   replicates the input data, blowing up its size. Instead, eval_sofun() could only
+#'   return the relevant plots, or the run_latest_versions() could do that.
 ```
 
-This vignette pulls the latest 
+This vignette pulls the latest three releases of the {rsofun} package and runs the same analysis using the same input data. Thereby, this vignettes allows to keep track of changes in model performance associated with updates to {rsofun}.
 
 ```{r warning=FALSE, message=FALSE, error=FALSE, include = FALSE}
+# Install rpmodel
+# if ("rpmodel" %in% installed.packages()) remove.packages("rpmodel")
+devtools::install_github("geco-bern/rpmodel", upgrade = "never", force = TRUE)
+
 # Load libraries
 library(dplyr)
 library(tidyr)
