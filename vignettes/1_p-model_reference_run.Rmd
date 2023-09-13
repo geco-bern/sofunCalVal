@@ -11,9 +11,16 @@ vignette: >
 ```{r setup, include = FALSE}
 # Install packages
 # if ("rsofun" %in% installed.packages()) remove.packages("rsofun")
-devtools::install_github("geco-bern/rsofun@v4.0", upgrade = "never", force = TRUE)
-devtools::install_github("geco-bern/rpmodel", upgrade = "never", force = TRUE)
+devtools::install_github(
+  "geco-bern/rsofun@v4.0",
+  upgrade = "never",
+  force = TRUE
+  )
 
+install.packages("rpmodel")
+```
+
+```{r echo = FALSE}
 # Load packages
 library(rpmodel)
 library(rsofun)
@@ -35,22 +42,22 @@ set.seed(42)
 
 # only select the sites from the New Phytologist paper
 # load site list and filter on these (see below)
-flue_sites <- readr::read_csv( "../data/flue_stocker18nphyt.csv" ) %>%
-              dplyr::filter( !is.na(cluster) ) %>% 
-              distinct(site) %>% 
-              pull(site)
+flue_sites <- readr::read_csv(here::here("data/flue_stocker18nphyt.csv")) %>%
+  dplyr::filter( !is.na(cluster) ) %>%
+  distinct(site) %>%
+  pull(site)
 
 # load fluxnet driver data (prepared)
-load("../data/df_drivers_fluxnet2015.rda")
+load(here::here("data/df_drivers_fluxnet2015.rda"))
 
 # load observational data (prepared)
-load("../data/obs_eval_fluxnet2015.rda")
+load(here::here("data/obs_eval_fluxnet2015.rda"))
 
 # convert data to adhere to new p-model naming conventions
 drivers <- df_drivers_fluxnet2015 %>%
-  dplyr::select(sitename, forcing) %>% 
-  unnest(forcing) %>% 
-  dplyr::filter(!(month(date) == 2 & mday(date) == 29)) %>% 
+  dplyr::select(sitename, forcing) %>%
+  unnest(forcing) %>%
+  dplyr::filter(!(month(date) == 2 & mday(date) == 29)) %>%
   
   ## model requires flux per seconds now
   mutate(
@@ -60,21 +67,17 @@ drivers <- df_drivers_fluxnet2015 %>%
     snow = 0,
     tmin = temp,
     tmax = temp
-  ) %>% 
-
-  group_by(sitename) %>% 
+  ) %>%
+  
+  group_by(sitename) %>%
   nest() %>%
-  rename(forcing = data) %>% 
+  rename(forcing = data) %>%
   right_join(
-    df_drivers_fluxnet2015 %>% 
+    df_drivers_fluxnet2015 %>%
       dplyr::select(-forcing),
     by = "sitename"
-  ) %>% 
-  ungroup() %>% 
-  rename(
-    site_info = siteinfo,
-    params_soil = df_soiltexture
-    )
+  )%>%
+  ungroup()
 
 # only retain New Phytologist sites!
 drivers <- drivers %>%
