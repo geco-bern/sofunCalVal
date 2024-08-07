@@ -22,7 +22,7 @@ source("../R/get_stats.R")
 set.seed(42)
 
 devtools::install_github("stineb/LSD")
-devtools::install_github("computationales/rsofun")
+devtools::install_github("geco-bern/rsofun")
 install.packages("rpmodel")
 library(rsofun)
 

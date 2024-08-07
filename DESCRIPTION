@@ -19,7 +19,7 @@ Authors@R: c(
 Maintainer: The package maintainer <yourself@somewhere.net>
 Description: Calibration and validation functionality for the rsofun package.
   Additional tools for plotting and benchmarking are also provided.
-URL: https://github.com/computationales/sofunCalVal
+URL: https://github.com/geco-bern/sofunCalVal
 License: GPL-3
 Depends:
     R (>= 4.0)
@@ -49,4 +49,4 @@ Suggests:
     testthat
 VignetteBuilder: knitr
 Remotes:
-    computationales/ingestr
+    geco-bern/ingestr
