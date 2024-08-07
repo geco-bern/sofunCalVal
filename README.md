@@ -6,7 +6,7 @@ serve others as well (however limited support is provided). Keep in mind
 that some of the workflow is dependent on internal compute infrastructure
 limiting the use of benchmarks.
 
-## Use
+## Use 
 
 The package can be used offline by running (knitting) the included vignettes.
 However, normal use is online using github actions triggering a build process
