@@ -9,16 +9,35 @@ vignette: >
 ---
 
 ```{r setup, include = FALSE}
-# load required libraries
+# Install packages
+# if ("rsofun" %in% installed.packages()) remove.packages("rsofun")
+devtools::install_github(
+  "geco-bern/rsofun@v4.0",
+  upgrade = "never",
+  force = TRUE
+  )
+
+install.packages("rpmodel")
+```
+
+```{r echo = FALSE}
+# Load packages
+library(rpmodel)
+library(rsofun)
 library(dplyr)
 library(tidyr)
 library(readr)
 library(ggplot2)
 library(lubridate)
 library(knitr)
+library(ggthemes)
+
+# Load functions
 source("../R/eval_sofun.R")
 source("../R/get_stats.R")
+source("../R/analyse_modobs2.R")
 
+# Set seed
 set.seed(42)
 
 devtools::install_github("stineb/LSD")
@@ -28,22 +47,22 @@ library(rsofun)
 
 # only select the sites from the New Phytologist paper
 # load site list and filter on these (see below)
-flue_sites <- readr::read_csv( "../data/flue_stocker18nphyt.csv" ) %>%
-              dplyr::filter( !is.na(cluster) ) %>% 
-              distinct(site) %>% 
-              pull(site)
+flue_sites <- readr::read_csv(here::here("data/flue_stocker18nphyt.csv")) %>%
+  dplyr::filter( !is.na(cluster) ) %>%
+  distinct(site) %>%
+  pull(site)
 
 # load fluxnet driver data (prepared)
-load("../data/df_drivers_fluxnet2015.rda")
+load(here::here("data/df_drivers_fluxnet2015.rda"))
 
 # load observational data (prepared)
-load("../data/obs_eval_fluxnet2015.rda")
+load(here::here("data/obs_eval_fluxnet2015.rda"))
 
 # convert data to adhere to new p-model naming conventions
 drivers <- df_drivers_fluxnet2015 %>%
-  dplyr::select(sitename, forcing) %>% 
-  unnest(forcing) %>% 
-  dplyr::filter(!(month(date)==2 & mday(date)==29)) %>% 
+  dplyr::select(sitename, forcing) %>%
+  unnest(forcing) %>%
+  dplyr::filter(!(month(date) == 2 & mday(date) == 29)) %>%
   
   ## model requires flux per seconds now
   mutate(
@@ -53,21 +72,17 @@ drivers <- df_drivers_fluxnet2015 %>%
     snow = 0,
     tmin = temp,
     tmax = temp
-  ) %>% 
-
-  group_by(sitename) %>% 
+  ) %>%
+  
+  group_by(sitename) %>%
   nest() %>%
-  rename(forcing = data) %>% 
+  rename(forcing = data) %>%
   right_join(
-    df_drivers_fluxnet2015 %>% 
+    df_drivers_fluxnet2015 %>%
       dplyr::select(-forcing),
     by = "sitename"
-  ) %>% 
-  ungroup() %>% 
-  rename(
-    site_info = siteinfo,
-    params_soil = df_soiltexture
-    )
+  )%>%
+  ungroup()
 
 # only retain New Phytologist sites!
 drivers <- drivers %>%
@@ -166,8 +181,8 @@ out_eval$gpp$fluxnet$data$meandoydf_byclim %>%
   theme_gray() +
   theme(legend.position = "bottom") +
   scale_color_manual(
-    name="Setup: ",
-    values=c("red", "black")
+    name = "Setup: ",
+    values = c("red", "black")
     )
 ```
 
@@ -183,11 +198,11 @@ df_dday_agg <- eval_droughtresponse(
       site = sitename
       ), 
   path_flue = "../data/flue_stocker18nphyt.csv",
-  before=20,
-  after=105,
+  before = 20,
+  after = 105,
   leng_threshold = 10, 
-  nbins=10, 
-  do_norm=TRUE
+  nbins = 10, 
+  do_norm = TRUE
   )
 
 usecol = colorRampPalette( c("wheat3", "white") )( 5 )[2]

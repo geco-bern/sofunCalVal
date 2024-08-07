@@ -24,9 +24,9 @@ License: GPL-3
 Depends:
     R (>= 4.0)
 Imports:
-    rpmodel,
     yardstick,
     ggplot2,
+    ggthemes,
     readr,
     dplyr,
     purrr,
@@ -39,7 +39,10 @@ Imports:
     multidplyr,
     stats,
     utils,
-    knitr
+    knitr,
+    here,
+    jsonlite,
+    httr
 LazyData: true
 ByteCompile: true
 RoxygenNote: 7.1.2
