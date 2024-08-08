@@ -41,9 +41,6 @@ evaluation Created by function \code{get_obs_eval()}}
 
 \item{overwrite}{A boolean, defaults to \code{FALSE}.}
 }
-\value{
-
-}
 \description{
 function to assist in the site by site comparison
 }
