@@ -52,3 +52,5 @@ Suggests:
     testthat,
     here
 VignetteBuilder: knitr
+Remotes:
+    geco-bern/ingestr
