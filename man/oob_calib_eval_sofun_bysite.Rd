@@ -19,9 +19,6 @@ oob_calib_eval_sofun_bysite(
 \arguments{
 \item{overwrite}{}
 }
-\value{
-
-}
 \description{
 Out of bag calibration statistics run by site
 }

@@ -13,9 +13,9 @@ library(tidyverse)
 library(rsofun)
 library(ingestr)
 
-if(!grepl('eu-', Sys.info()['nodename'])){
-  stop("You are not on Euler, source data unavailable - abort abort abort!")
-}
+# if(!grepl('eu-', Sys.info()['nodename'])){
+#   stop("You are not on Euler, source data unavailable - abort abort abort!")
+# }
 
 # Process driver data -----------------------------------------------------
 message("-----------------------------------------------------")

@@ -2,17 +2,15 @@
 #'
 #' Function needs no input for now.
 #'
-#' @param none
+#' @param n_tags Integer. Number of tags to to be loaded.
 #'
 #' @return A nested list following the structure of eval_sofun(), plus two
 #' additional plots for the seasonal cycles and the drought response.
 #' @export
 
-run_latest_versions <- function(){
-
-  # Get latest versions ----
-  # Set number of tags to to be loaded
-  n_tags <- 3
+run_latest_versions <- function(
+    n_tags  # number of tags to to be loaded
+    ){
 
   # Define the GitHub API URL
   url <- "https://api.github.com/repos/geco-bern/rsofun/tags"
@@ -43,13 +41,13 @@ run_latest_versions <- function(){
   # Safety Check ----
   if (
     any(grepl("v3", latest_releases)) |
-    any(grepl("v4.4", latest_releases))
+    any(grepl("v4.5", latest_releases))
     ) {
     stop(
       paste0(
         "\n--------------------------------------------------------------------------\n",
         "Function `run_latest_versions():\n",
-        "Running latest versions has only been tested for v4.0 - v4.3.\n",
+        "Running latest versions has only been tested for v4.0 - v4.4.\n",
         "If a newer version (v4.4 or higher) should be added, make sure to format\n",
         "driver data accordingly, and adjust this error statement\n",
         "--------------------------------------------------------------------------\n"
@@ -64,8 +62,8 @@ run_latest_versions <- function(){
   # Loop Start ----
   for (version_nr in latest_releases) {
 
-    ## Install rsofun version ----
-    # if ("rsofun" %in% installed.packages()) remove.packages("rsofun")
+    # ## Install rsofun version ----
+    # # if ("rsofun" %in% installed.packages()) remove.packages("rsofun")
     rsofun_version <- paste0("geco-bern/rsofun@", version_nr)
     devtools::install_github(rsofun_version,
                              upgrade = "never",
@@ -85,27 +83,22 @@ run_latest_versions <- function(){
       distinct(site) %>%
       pull(site)
 
-    # load fluxnet driver data (prepared)
-    load(here::here("data/df_drivers_fluxnet2015.rda"))
+    # model forcing data
+    load(here("data/df_drivers_fluxnet2015.Rdata"))
 
-    # load observational data (prepared)
-    load(here::here("data/obs_eval_fluxnet2015.rda"))
-
-    # convert data to adhere to new p-model naming conventions
-    drivers <- df_drivers_fluxnet2015 %>%
+    df_drivers_fluxnet2015 <- df_drivers_fluxnet2015 %>%
       dplyr::select(sitename, forcing) %>%
       unnest(forcing) %>%
-      dplyr::filter(!(month(date) == 2 & mday(date) == 29)) %>%
+      dplyr::filter(!(month(date)==2 & mday(date)==29)) %>%
 
       ## model requires flux per seconds now
-      mutate(
-        prec = prec / (60*60*24),
-        ppfd = ppfd / (60*60*24),
-        rain = prec,
-        snow = 0,
-        tmin = temp,
-        tmax = temp
-      ) %>%
+      mutate(prec = prec / (60*60*24), ppfd = ppfd / (60*60*24)) %>%
+
+      ## assuming all precipitation in liquid form
+      mutate(rainf = prec, snowf = 0) %>%
+
+      ## required for new version, but not used because
+      mutate(tmin = temp, tmax = temp) %>%
 
       group_by(sitename) %>%
       nest() %>%
@@ -116,34 +109,140 @@ run_latest_versions <- function(){
         by = "sitename"
       ) %>%
       ungroup() %>%
-      rename(
-        site_info = siteinfo,
-        params_soil = df_soiltexture
+      rename(site_info = siteinfo, params_soil = df_soiltexture)
+
+    # site selection: good-quality sites from analysis of Stocker et al. (2018) New Phyt.
+    flue_sites <- readr::read_csv(here("data/flue_stocker18nphyt.csv")) %>%
+      dplyr::filter( !is.na(cluster) ) %>%
+      distinct(site) %>%
+      pull(site)
+
+    # observational data as calibration target
+    # created from daily FLUXNE2015 data by:
+    # - using GPP_NT_VUT_REF
+    # - using QC>0.8
+    ddf_fluxnet_gpp <- readr::read_rds(here("data/ddf_fluxnet_gpp_v4.2.rds"))
+
+    # observational data for evaluation
+    load(here("data/obs_eval_fluxnet2015.Rdata"))
+
+    # site meta info
+    siteinfo_fluxnet2015 <- df_drivers_fluxnet2015 |>
+      select(sitename, site_info) |>
+      unnest(site_info)
+
+    # calibration sites
+    calibsites <- siteinfo_fluxnet2015 %>%
+      dplyr::filter(!(sitename %in% c("DE-Akm", "IT-Ro1"))) %>%  # excluded because fapar data could not be downloaded (WEIRD)
+      # dplyr::filter(!(sitename %in% c("AU-Wom"))) %>%  # excluded because no GPP data was found in FLUXNET file
+      dplyr::filter(sitename != "FI-Sod") %>%  # excluded because some temperature data is missing
+      dplyr::filter( c4 %in% c(FALSE, NA) & classid != "CRO" & classid != "WET" ) %>%
+      dplyr::filter( sitename %in% flue_sites ) %>%
+      pull(sitename)
+
+    # # BayesianTools calibration settings for v4.4
+    # settings_calib <- list(
+    #   method = "BayesianTools",
+    #   metric = cost_likelihood_pmodel,
+    #   control = list(
+    #     sampler = "DEzs",
+    #     settings = list(
+    #       burnin = 1500,
+    #       iterations = 12000,
+    #       nrChains = 3,       # number of independent chains
+    #       startValue = 3      # number of internal chains to be sampled
+    #     )),
+    #   par = list(
+    #     kphio = list(lower = 0.03, upper = 0.15, init = 0.05),
+    #     soilm_betao = list(lower = 0, upper = 1, init = 0.2),
+    #     kc_jmax = list(lower = 0.2, upper = 0.8, init = 0.41),
+    #     err_gpp = list(lower = 0.1, upper = 3, init = 0.8)
+    #   )
+    # )
+    #
+    # # calibrate model
+    # set.seed(1982)
+    # par_calib <- calib_sofun(
+    #   drivers = df_drivers_fluxnet2015 |>
+    #     dplyr::filter(sitename %in% calibsites) |>
+    #     dplyr::mutate(forcing = purrr::map(forcing, ~rename(., rain = rainf, snow = snowf))),
+    #   obs = ddf_fluxnet_gpp,
+    #   settings = settings_calib,
+    #   par_fixed = list(
+    #     kphio_par_a = -0.0025,            # define model parameter values from
+    #     kphio_par_b = 20,                 # Stocker et al. 2020
+    #     soilm_thetastar    = 0.6*240,
+    #     beta_unitcostratio = 146.0,
+    #     rd_to_vcmax        = 0.014,
+    #     tau_acclim         = 30.0),
+    #   targets = "gpp"
+    # )
+
+    # GenSa calibration settings for v4.4
+    settings_calib <- list(
+      method = "GenSA",
+      metric = cost_rmse_pmodel,
+      control = list(maxit = 100),
+      par = list(
+        kphio = list(lower = 0.03, upper = 0.15, init = 0.05),
+        soilm_betao = list(lower = 0, upper = 1, init = 0.2),
+        kc_jmax = list(lower = 0.2, upper = 0.8, init = 0.41)
       )
-
-    # only retain New Phytologist sites!
-    drivers <- drivers %>%
-      filter(sitename %in% flue_sites)
-
-    # use a fixed model parameter set
-    # assuming the same underlying mechanics
-    # we'll not update these in new runs
-    params_modl <- list(
-      kphio           = 0.09423773,
-      soilm_par_a     = 0.33349283,
-      soilm_par_b     = 1.45602286,
-
-      # Note, latter parameters were not calibrated
-      tau_acclim_tempstress = 10,
-      par_shape_tempstress  = 0.0
     )
 
-    ##  Run model ----
+    # fixed (not calibrated) model parameters
+    par_fixed = list(
+      kphio_par_a = -0.0025,            # define model parameter values from
+      kphio_par_b = 20,                 # Stocker et al. 2020
+      soilm_thetastar    = 0.6*240,
+      beta_unitcostratio = 146.0,
+      rd_to_vcmax        = 0.014,
+      tau_acclim         = 30.0
+      )
+
+    # calibrate model
+    set.seed(1982)
+    par_calib <- calib_sofun(
+      drivers = df_drivers_fluxnet2015 |>
+        dplyr::filter(sitename %in% calibsites) |>
+        dplyr::mutate(forcing = purrr::map(forcing, ~rename(., rain = rainf, snow = snowf))) |>
+        dplyr::mutate(forcing = purrr::map(forcing, ~mutate(., netrad = 0))),
+      obs = ddf_fluxnet_gpp,
+      settings = settings_calib,
+      par_fixed = par_fixed,
+      targets = "gpp",
+      verbose = TRUE
+    )
+
+    params_modl <- list(
+      kphio              = par_calib$par["kphio"],
+      kphio_par_a        = par_fixed["kphio_par_a"],
+      kphio_par_b        = par_fixed["kphio_par_b"],
+      soilm_thetastar    = par_fixed["soilm_thetastar"],
+      soilm_betao        = par_calib$par["soilm_betao"],
+      beta_unitcostratio = par_fixed["beta_unitcostratio"],
+      rd_to_vcmax        = par_fixed["rd_to_vcmax"],
+      tau_acclim         = par_fixed["tau_acclim"],
+      kc_jmax            = par_calib$par["kc_jmax"]
+    )
+
+    # run model
     output <- rsofun::runread_pmodel_f(
-      drivers,
+      df_drivers_fluxnet2015 |>
+        dplyr::mutate(
+          forcing = purrr::map(
+            forcing,
+            ~rename(., rain = rainf, snow = snowf))
+          ) |>
+        dplyr::mutate(
+          forcing = purrr::map(
+            forcing,
+            ~mutate(., netrad = 0))
+        ),
       par = params_modl
     )
 
+    # evaluate outputs
     evalsites <- output %>%
       mutate(ntsteps = purrr::map_dbl(data, ~nrow(.))) %>%
       dplyr::filter(ntsteps > 0) %>%
