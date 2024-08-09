@@ -13,14 +13,14 @@ This workflow runs the P-model with {rsofun} with the latest version and forcing
 ```{r setup, include = FALSE}
 # Install packages
 # if ("rsofun" %in% installed.packages()) remove.packages("rsofun")
-# devtools::install_github(
-#   "geco-bern/rsofun",
-#   ref = "HEAD",
-#   upgrade = "never",
-#   force = TRUE
-#   )
-# 
-# install.packages("rpmodel")
+devtools::install_github(
+  "geco-bern/rsofun",
+  ref = "HEAD",
+  upgrade = "never",
+  force = TRUE
+  )
+
+install.packages("rpmodel")
 
 # Load packages
 library(rpmodel)
@@ -129,6 +129,7 @@ settings_calib <- list(
   control = list(maxit = 100),
   par = list(
     kphio = list(lower = 0.03, upper = 0.15, init = 0.05),
+    kphio_par_a = list(lower = -0.005, upper = 0, init = -0.0025),
     soilm_betao = list(lower = 0, upper = 1, init = 0.2),
     kc_jmax = list(lower = 0.2, upper = 0.8, init = 0.41)
   )
@@ -136,16 +137,15 @@ settings_calib <- list(
 
 # fixed (not calibrated) model parameters
 par_fixed = list(
-  kphio_par_a = -0.0025,            # define model parameter values from
-  kphio_par_b = 20,                 # Stocker et al. 2020
+  kphio_par_b        = 20,
   soilm_thetastar    = 0.6*240,
   beta_unitcostratio = 146.0,
   rd_to_vcmax        = 0.014,
   tau_acclim         = 30.0
   )
 
-# THIS IS NOT RUN, RUN BEFOREHAND AND SPECIFY PARAMETERS BY HAND BELOW
-# Calibrate the model.
+# # THIS IS NOT RUN, RUN BEFOREHAND AND SPECIFY PARAMETERS BY HAND BELOW
+# # Calibrate the model.
 # set.seed(1982)
 # par_calib <- calib_sofun(
 #   drivers = df_drivers_fluxnet2015 |>
@@ -155,8 +155,8 @@ par_fixed = list(
 #   obs = ddf_fluxnet_gpp,
 #   settings = settings_calib,
 #   par_fixed = par_fixed,
-#   targets = "gpp",
-#   verbose = TRUE
+#   targets = "gpp"
+#   # verbose = TRUE
 # )
 ```
 
@@ -166,15 +166,15 @@ Model parameters are determined for this version from calibration. The code for 
 
 ```{r}
 params_modl <- list(
-  kphio              = 0.09423773,  # par_calib$par["kphio"],
-  kphio_par_a        = par_fixed["kphio_par_a"],
+  kphio              = 0.04090209, # 0.09423773,  # par_calib$par["kphio"],
+  kphio_par_a        = -0.001366283, # par_calib$par["kphio_par_a"],
   kphio_par_b        = par_fixed["kphio_par_b"],
   soilm_thetastar    = par_fixed["soilm_thetastar"],
-  soilm_betao        = 0,  # par_calib$par["soilm_betao"],
+  soilm_betao        = 0.683499654, # par_calib$par["soilm_betao"], # 0,  # 
   beta_unitcostratio = par_fixed["beta_unitcostratio"],
   rd_to_vcmax        = par_fixed["rd_to_vcmax"],
   tau_acclim         = par_fixed["tau_acclim"],
-  kc_jmax            = 0.41  # par_calib$par["kc_jmax"]
+  kc_jmax            = 0.200000000 # par_calib$par["kc_jmax"] # 0.41  # 
 )
 ```
 
