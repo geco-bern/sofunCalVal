@@ -1,8 +1,7 @@
-pandoc: 2.7.3
-pkgdown: 2.0.6
+pandoc: 3.1.11
+pkgdown: 2.1.0
 pkgdown_sha: ~
 articles:
-  p-model_reference_run: p-model_reference_run.html
-  p-model_run: p-model_run.html
-last_built: 2022-07-28T17:21Z
-
+  0_p-model_current_run: 0_p-model_current_run.html
+  1_p-model_reference_run: 1_p-model_reference_run.html
+last_built: 2024-08-09T12:14Z
