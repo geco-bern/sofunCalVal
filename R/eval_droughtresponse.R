@@ -11,24 +11,20 @@
 #'
 #' @examples xxx
 #'
-eval_droughtresponse <- function( df, path_flue, before, after, leng_threshold, nbins, do_norm = FALSE ){
-
-  if (!file.exists(path_flue)){
-    rlang::abort(paste("File does not exist:", path_flue))
-  }
+eval_droughtresponse <- function( df, df_flue, before, after, leng_threshold, nbins, do_norm = FALSE ){
 
   ## Get fLUE Stocker et al., 2018 publicly available data
-  df_flue <- read_csv( path_flue ) %>%
+  df_flue <- df_flue %>%
     dplyr::select(-year, -doy, -cluster) %>%
     dplyr::rename( isevent = is_flue_drought )
-
+  
   ## Rearrange data. Function returns list( df_dday, df_dday_aggbydday )
   dovars <- c("bias")
   df <- df %>%
     mutate(bias = mod - obs)
-
+  
   out_align <- align_events( df, df_flue, dovars, leng_threshold, before, after, nbins, do_norm = do_norm )
-
+  
   return( out_align$df_dday_aggbydday )
 }
 
