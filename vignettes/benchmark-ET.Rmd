@@ -27,12 +27,12 @@ library(ncdf4)
 
 
 # Load functions
-source( here("my_stuff","eval_sofun.R"))
-source(here("my_stuff/get_stats.R"))
-source(here("my_stuff/analyse_modobs2.R"))
-source(here("my_stuff/align_events.R"))
-source(here("my_stuff/eval_droughtresponse.R"))
-source(here("my_stuff/heatscatter_dependencies.R"))
+source( here("R","eval_sofun.R"))
+source(here("R/get_stats.R"))
+source(here("R/analyse_modobs2.R"))
+source(here("R/align_events.R"))
+source(here("R/eval_droughtresponse.R"))
+source(here("R/heatscatter_dependencies.R"))
 
 
 
@@ -44,18 +44,19 @@ set.seed(42)
 # need to ask to Beni why
 
 # load site list and filter on these (see below)
-# flue_sites <- readr::read_csv(here::here("my_stuff/flue_stocker18nphyt.csv")) %>%
+# flue_sites <- readr::read_csv(here::here("data/flue_stocker18nphyt.csv")) %>%
 #   dplyr::filter( !is.na(cluster) ) %>%
 #   distinct(site) %>%
 #   pull(site)
 
 # model forcing data
-driver <- read_rds("/data_2/FluxDataKit/v3.4/zenodo_upload/rsofun_driver_data_v3.4.rds")
+driver <- read_rds("/data_2/FluxDataKit/v3.4/zenodo_upload/rsofun_driver_data_v3.4.rds") # currently only on workstation
 
-fdk_site_info <- read_csv(here("my_stuff/fdk_site_info.csv"))
+fdk_site_info <- read_csv(here("data/fdk_site_info.csv"))
 
-fdk_filter <-  read_csv(here("my_stuff/fdk_site_fullyearsequence.csv"))
+fdk_filter <-  read_csv(here("data/fdk_site_fullyearsequence.csv"))
 
+# these sites do not yield any result
 
 fdk_site_info <- fdk_site_info[fdk_site_info$igbp_land_use != "CRO" &
                                fdk_site_info$igbp_land_use != "WET" &
@@ -93,7 +94,7 @@ driver <- left_join(
   rename(forcing = data) |>
   select(-c(year_start_le,year_end_le))
 
-df_flue <-  read_csv(here("my_stuff/flue_stocker18nphyt.csv"))
+df_flue <-  read_csv(here("data/flue_stocker18nphyt.csv"))
 
 df_flue <- df_flue[df_flue$site %in% fdk_filter$sitename,]
 
@@ -109,14 +110,10 @@ df_flue <- left_join(df_flue |>
            rename(site = sitename)
 
 
-# !!! this is optional, need to ask to beni
 
-# keep_le <- read.table(here("my_stuff/keep_le.txt"))
-# 
-# driver <- driver[which(driver$sitename %in% keep_le$V1),]
 
 # load previous data for the structure
-load(here("my_stuff/obs_eval_fluxnet2015.Rdata"))
+load(here("data/obs_eval_fluxnet2015.Rdata"))
 ```
 
 
@@ -267,7 +264,7 @@ driver_2m <- driver
 driver_2m <-driver_2m[which(driver_2m$sitename %in% fdk_site_info$sitename),]
 
 
-nc_file <- nc_open(here("my_stuff/whc_2m.nc"))
+nc_file <- nc_open(here("data/whc_2m.nc"))
 
 whc = ncvar_get(nc_file, "whc_2m")
 lons = ncvar_get(nc_file, "lon")
