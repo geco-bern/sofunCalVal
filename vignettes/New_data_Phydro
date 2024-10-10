@@ -1,0 +1,495 @@
+
+
+```{r setup, include = FALSE}
+# Install packages
+if ("rsofun" %in% installed.packages()) remove.packages("rsofun")
+devtools::install_github(
+  "geco-bern/rsofun@phydro",
+  upgrade = "never",
+  force = TRUE
+  )
+
+# Load packages
+library(rsofun)
+packageVersion("rsofun")
+library(dplyr)
+library(tidyr)
+library(readr)
+library(ggplot2)
+library(lubridate)
+library(knitr)
+library(ggthemes)
+library(here)
+
+# Load functions
+source("../R/eval_sofun.R")
+source("../R/get_stats.R")
+source("../R/analyse_modobs2.R")
+source(here("R/align_events.R"))
+source(here("R/eval_droughtresponse.R"))
+source(here("R/heatscatter_dependencies.R"))
+
+
+# Set seed
+set.seed(42)
+
+# model forcing data
+driver <- read_rds("/data_2/FluxDataKit/v3.4/zenodo_upload/rsofun_driver_data_v3.4.rds") # currently only on workstation
+
+# site meta info
+
+fdk_site_info <- read_csv("/data_2/FluxDataKit/v3.4/zenodo_upload/fdk_site_info.csv")
+
+fdk_filter <-  read_csv("/data_2/FluxDataKit/v3.4/zenodo_upload/fdk_site_fullyearsequence.csv")
+
+
+fdk_site_info <- fdk_site_info[fdk_site_info$igbp_land_use != "CRO" &
+                               fdk_site_info$igbp_land_use != "WET" 
+                               # &
+                               # fdk_site_info$sitename != "CA-SF1" &
+                               # fdk_site_info$sitename != "CA-SF3" &
+                               # fdk_site_info$sitename != "GF-Guy" &
+                               # fdk_site_info$sitename != "ID-Pag" &
+                               # fdk_site_info$sitename != "US-HWB" & 
+                               # fdk_site_info$sitename != "GL-Dsk"
+                               ,]
+
+fdk_filter <- fdk_filter[fdk_filter$drop_gpp == "FALSE",]
+
+driver <-driver[which(driver$sitename %in% fdk_site_info$sitename & 
+                      driver$sitename %in% fdk_filter$sitename),]
+
+fdk_site_info <-fdk_site_info[which(fdk_site_info$sitename %in% driver$sitename),]
+
+fdk_filter <-fdk_filter[which(fdk_filter$sitename %in% driver$sitename &
+                              fdk_filter$sitename %in% fdk_site_info$sitename),]
+
+# select only year with good quality le
+
+driver <- left_join(
+  driver, fdk_filter |>
+  select(sitename,year_start_gpp,year_end_gpp),
+  by = "sitename") |>
+  unnest(forcing) |>
+  filter(between(as_date(date),
+                 as_date(paste0(year_start_gpp,"-01-01")),
+                 as_date(paste0(year_end_gpp,"-12-31"))
+                 )
+         ) |>
+  group_by(sitename) |>
+  nest(data = colnames(driver[1,]$forcing[[1]])) |>
+  rename(forcing = data) |>
+  select(-c(year_start_gpp,year_end_gpp))
+
+
+# site selection: good-quality sites from analysis of Stocker et al. (2018) New Phyt.
+df_flue <- readr::read_csv(here("data/flue_stocker18nphyt.csv"))
+
+df_flue <- df_flue[df_flue$site %in% fdk_filter$sitename,]
+
+df_flue <- left_join(df_flue |>
+                       rename(sitename = site), fdk_filter |>
+                       select(sitename,year_start_gpp,year_end_gpp),
+                       by = "sitename") |>
+           filter(between(as_date(date),
+                 as_date(paste0(year_start_gpp,"-01-01")),
+                 as_date(paste0(year_end_gpp,"-12-31"))
+                 )) |>
+           select(-c(year_start_gpp,year_end_gpp)) |>
+           rename(site = sitename)
+
+
+
+# observational data as calibration and evaluation target
+# created from daily FLUXNE2015 data by:
+# - using GPP_NT_VUT_REF
+# - using QC>0.8
+# changing the obs val to the new version with gpp
+
+load(here("data/obs_eval_fluxnet2015.Rdata"), verbose = TRUE) # use as a blueprint
+obs_eval$ddf <- NULL
+obs_eval$xdf <- NULL
+obs_eval$mdf <- NULL
+obs_eval$adf <- NULL
+obs_eval$breaks <- NULL
+
+
+# daily data
+
+ddf_tibble_preparation <- driver |>
+  unnest(forcing) |>
+  group_by(sitename) |>
+  select(date,gpp) |>
+  nest()
+
+ddf_tibble_preparation <- ddf_tibble_preparation$data
+
+obs_eval$ddf <- tibble(sitename = fdk_site_info$sitename,
+                       lon = fdk_site_info$lon,
+                       lat = fdk_site_info$lat,
+                       elv = fdk_site_info$elv,
+                       classid = fdk_site_info$igbp_land_use,
+                       whc = fdk_site_info$whc,
+                       koeppen_code = fdk_site_info$koeppen_code,
+                       igbp_land_use = fdk_site_info$igbp_land_use,
+                       plant_functioanl_type= NA,
+                       c4 = FALSE,
+                       data = ddf_tibble_preparation)
+
+# weekly data
+
+xdf_tibble_preparation <- driver |>
+  unnest(forcing) |>
+  mutate(week = lubridate::floor_date(date, "week")) |>
+  select(sitename ,week,gpp) |>
+  group_by(sitename, week) |>
+  summarize(gpp = sum(gpp)) |>
+  mutate(inbin = as.factor(week), date = week) |>
+  select(date,inbin,gpp) |>
+  nest()
+
+xdf_tibble_preparation <- xdf_tibble_preparation$data
+
+obs_eval$xdf <- tibble(sitename = fdk_site_info$sitename,
+                       lon = fdk_site_info$lon,
+                       lat = fdk_site_info$lat,
+                       elv = fdk_site_info$elv,
+                       classid = fdk_site_info$igbp_land_use,
+                       whc = fdk_site_info$whc,
+                       koeppen_code = fdk_site_info$koeppen_code,
+                       igbp_land_use = fdk_site_info$igbp_land_use,
+                       plant_functioanl_type= NA,
+                       c4 = FALSE,
+                       data = xdf_tibble_preparation)
+
+# monthly data
+
+mdf_tibble_preparation <- driver |>
+  unnest(forcing) |>
+  mutate(month = lubridate::floor_date(date, "month")) |>
+  select(sitename ,month,gpp) |>
+  group_by(sitename, month) |>
+  summarize(gpp = sum(gpp)) |>
+  mutate(date = month) |>
+  select(date,gpp) |>
+  nest()
+
+mdf_tibble_preparation <- mdf_tibble_preparation$data
+
+obs_eval$mdf <- tibble(sitename = fdk_site_info$sitename,
+                       lon = fdk_site_info$lon,
+                       lat = fdk_site_info$lat,
+                       elv = fdk_site_info$elv,
+                       classid = fdk_site_info$igbp_land_use,
+                       whc = fdk_site_info$whc,
+                       koeppen_code = fdk_site_info$koeppen_code,
+                       igbp_land_use = fdk_site_info$igbp_land_use,
+                       plant_functioanl_type= NA,
+                       c4 = FALSE,
+                       data = mdf_tibble_preparation)
+
+# annual data
+
+adf_tibble_preparation <- driver |>
+  unnest(forcing) |>
+  mutate(year = lubridate::floor_date(date, "year")) |>
+  select(sitename ,year,gpp) |>
+  group_by(sitename, year) |>
+  summarize(gpp = sum(gpp)) |>
+  mutate(date = year) |>
+  select(date,gpp) |>
+  nest()
+
+adf_tibble_preparation <- adf_tibble_preparation$data
+
+obs_eval$adf <- tibble(sitename = fdk_site_info$sitename,
+                       lon = fdk_site_info$lon,
+                       lat = fdk_site_info$lat,
+                       elv = fdk_site_info$elv,
+                       classid = fdk_site_info$igbp_land_use,
+                       whc = fdk_site_info$whc,
+                       koeppen_code = fdk_site_info$koeppen_code,
+                       igbp_land_use = fdk_site_info$igbp_land_use,
+                       plant_functioanl_type= NA,
+                       c4 = FALSE,
+                       data = adf_tibble_preparation)
+
+
+breaks_preparation <- driver |>
+  unnest(forcing) |>
+  select(date) |>
+  arrange(date) |>
+  distinct(date) |>
+  mutate(breaks = lubridate::floor_date(date, "week"))
+
+
+obs_eval$breaks <- unique((breaks_preparation$breaks))[-1]
+
+
+
+## Calibrate model
+# calibsites # TODO: define which sites are for calibration and which are for evaluation
+           # write_rds(calibsites, file = here("data/calibsites.rds"))
+
+# settings_calib <- list(
+#   method      = "gensa",
+#   targetvars  = c("gpp"),
+#   timescale   = list(targets_obs = "d"),
+#   metric      = cost_rmse_fullstack,
+#   dir_results = "./",
+#   name        = "v4.2",
+#   control = list(
+#     max.call = 100,
+#     trace.mat = TRUE
+#   ),
+#   par = list(
+#     kphio = list( lower=0.03, upper=0.1, init= 0.05 ),
+#     a = list( lower=0.0,  upper=1.0, init=0.0 ),
+#     b = list( lower=0.0,  upper=1.5, init=0.6 )
+#     )
+# )
+
+# # THIS IS NOT RUN, RUN BEFOREHAND AND SPECIFY PARAMETERS BY HAND BELOW
+# set.seed(1982)
+# pars <- calib_sofun(
+#     drivers  = df_drivers_fluxnet2015 |> 
+#       dplyr::filter(sitename %in% calibsites) |> 
+#       dplyr::mutate(forcing = purrr::map(forcing, ~rename(., rain = rainf, snow = snowf))),
+#   obs      = ddf_fluxnet_gpp,
+#   settings = settings_calib
+#   )
+
+```
+
+# Model parameters
+
+Model parameters are determined for this version from calibration. The code for model calibration is not shown. See `vignettes/1_p-model_reference_run.Rmd` for the code.
+
+# Model run
+
+```{r warning = FALSE, message = FALSE}
+output <- NULL
+
+for(i in 1:dim(driver[1])){
+  
+  driver$params_siml[[i]]$use_gs     <- FALSE
+  driver$params_siml[[i]]$use_pml    <- FALSE
+  driver$params_siml[[i]]$use_phydro <- FALSE
+  
+  driver$forcing_acclim[[i]] <- driver$forcing[[i]]
+
+  params_modl <- list(
+    kphio              = 0.05797586,    # setup ORG in Stocker et al. 2020 GMD  # TODO: or do we need to have 0.0288
+    kphio_par_a        = -0.0025,     
+    kphio_par_b        = 20,
+    rd_to_vcmax        = 0.014,      # value from Atkin et al. 2015 for C3 herbaceous
+    soilm_thetastar    = 144,
+    beta_unitcostratio = 146,
+    tau_acclim         = 30,
+    kc_jmax            = 0.54131889,
+    whc                = driver$site_info[[i]]$whc # TODO: use the constant whc from the nc file.
+  )
+  
+ tmp <- rsofun::runread_pmodel_f(
+  driver[i,],
+  par = params_modl
+ )
+  
+  
+  output <- rbind(output,tmp)
+
+}
+
+# TODO: some sites do not work here:
+output |>
+  mutate(len = purrr::map_int(data, ~nrow(.))) |>
+  filter(len == 1) |>
+  select(-len)
+#   sitename site_info        data             
+#   <chr>    <list>           <list>           
+# 1 FR-Hes   <tibble [1 × 4]> <tibble [1 × 24]>
+# 2 SE-Nor   <tibble [1 × 4]> <tibble [1 × 24]>
+
+output |>
+  unnest(data) |>
+    filter(gpp < 0)
+# # TODO: check these days on some sites: It appears that gs-acclimation does not work. GS is negative. And AET is mistakingly larger than the pet. But interestingly not negative.
+# # A tibble: 11 × 27
+#    sitename site_info date       year_dec fapar       gpp   aet       le    pet    vcmax    jmax vcmax25  jmax25  gs_accl wscal     chi    iwue     rd  tsoil netrad wcont  snow
+#    <chr>    <list>    <date>        <dbl> <dbl>     <dbl> <dbl>    <dbl>  <dbl>    <dbl>   <dbl>   <dbl>   <dbl>    <dbl> <dbl>   <dbl>   <dbl>  <dbl>  <dbl>  <dbl> <dbl> <dbl>
+#  1 CH-Cha   <tibble>  2020-01-27    2020. 0.831 -171848.   1.91 4759970. 0.761   4.01e-6 1.82e-5 1.61e-5 5.99e-5 -3.37e+2 0.997 -0.185  4.91e-4 0.0368  2.61   37.0   718.     0
+#  2 CH-Cha   <tibble>  2020-01-28    2020. 0.833   -3908.   1.92 4774821  0.269   4.63e-6 1.93e-5 1.70e-5 5.86e-5 -7.60e+0 1     -0.197  4.96e-4 0.0439  2.62   12.6   721.     0
+#  3 CH-Cha   <tibble>  2020-02-04    2020. 0.839    -299.   1.96 4889637  0.822   4.21e-6 1.76e-5 1.66e-5 5.53e-5 -6.20e-1 1     -0.122  4.65e-4 0.0411  4.15   38.9   721.     0
+#  4 CH-Cha   <tibble>  2020-02-05    2020. 0.840    -189.   1.90 4739402. 0.449   4.38e-6 1.79e-5 1.75e-5 5.70e-5 -3.93e-1 0.997 -0.119  4.63e-4 0.0425  4.21   21.4   719.     0
+#  5 CH-Dav   <tibble>  2020-05-26    2020. 0.637     -41.6  2.35 5819488  5.69    1.46e-5 5.47e-5 4.82e-5 1.38e-4 -8.82e-2 0.543 -0.0967 4.54e-4 0.170   7.86  225.    132.     0
+#  6 CZ-Lnz   <tibble>  2020-03-01    2020. 0.339    -125.   3.15 7814878. 2.16    2.20e-6 9.63e-6 7.51e-6 2.58e-5 -2.57e-1 0.554 -0.128  4.67e-4 0.0238  6.41   38.4  1308.     0
+#  7 FR-FBn   <tibble>  2020-12-31    2021. 0.629    -427.   2.19 5447722  1.08    3.10e-6 1.37e-5 1.46e-5 4.32e-5 -8.83e-1 0.478 -0.125  4.66e-4 0.0369  9.32  -16.8  2853.     0
+#  8 GL-Dsk   <tibble>  2020-05-19    2020. 0.123  -10747.   1.63 4069862. 3.22    5.67e-6 9.31e-6 2.32e-5 3.65e-5 -2.17e+1 0.995 -0.155  4.78e-4 0.0390 -0.595 155.    664.     0
+#  9 IT-Lav   <tibble>  2020-11-04    2021. 0.756    -242.   2.41 5951814. 0.932   9.72e-6 3.69e-5 2.92e-5 8.18e-5 -4.93e-1 0.993 -0.143  4.73e-4 0.126   9.38   35.5  2275.     0
+# 10 IT-Lav   <tibble>  2020-12-31    2021. 0.408    -230.   1.56 3898462. 0.0690  1.61e-6 7.72e-6 9.55e-6 3.54e-5 -4.87e-1 0.999 -0.101  4.56e-4 0.0132  3.29    3.76 2289.     0
+# 11 IT-Tor   <tibble>  2020-05-28    2020. 0.703     -86.4  3.13 7751302  3.94    2.07e-5 7.91e-5 5.74e-5 1.76e-4 -1.80e-1 0.950 -0.118  4.63e-4 0.241   6.74  145.    632.     0
+
+
+# remove sites where it didn't work
+output <- output |>
+  mutate(len = purrr::map_int(data, ~nrow(.))) |>
+  filter(!(sitename %in% c("CH-Cha", "CH-Dav", "IT-Tor", "CZ-Lnz","FR-FBn", "GL-Dsk", "IT-Lav"))) |>
+  filter(len != 1) |>
+  select(-len)
+```
+
+# Run evaluation
+
+This runs the `eval_sofun()` routine included in the sofunCalVal package, and outputs daily, monthly and annual summary statistics comparing observed with simulated values. We'll retake this same routine when running on the latest release (i.e. the workflow is equivalent but for the release of the `rsofun` package)
+
+```{r warning=FALSE, message=FALSE, error=FALSE, include = FALSE}
+evalsites <- output %>% 
+  mutate(ntsteps = purrr::map_dbl(data, ~nrow(.))) %>% 
+  dplyr::filter(ntsteps > 0) %>% 
+  pull(sitename)
+# write_rds(evalsites, file = here("data/evalsites.rds"))
+
+settings_eval <- list(
+  benchmark = list( gpp = c("fluxnet") ),
+  sitenames = evalsites,
+  agg       = 8
+  )
+
+out_eval <- eval_sofun( 
+  output, 
+  settings_eval, 
+  obs_eval = obs_eval, 
+  overwrite = TRUE, 
+  light = FALSE 
+  )
+```
+
+# Results
+
+```{r warning=FALSE, message=FALSE, error=FALSE, echo = FALSE}
+out_eval$gpp$fluxnet$metrics %>% 
+  bind_rows(.id = "Level") %>% 
+  kable()
+```
+
+## 8-daily, spatial and annual
+
+```{r message = FALSE, warning = FALSE, echo = FALSE}
+out_eval$gpp$fluxnet$plot$gg_modobs_xdaily
+out_eval$gpp$fluxnet$plot$gg_modobs_spatial_annual
+```
+
+## Mean seasonal cycle
+
+```{r message = FALSE, warning = FALSE, echo = FALSE}
+out_eval$gpp$fluxnet$data$meandoydf_byclim %>% 
+  dplyr::filter(climatezone %in% c(
+    "Aw south", "BSk north", "Cfa north",
+    "Cfb north", "Cfb south", "Csa north",
+    "Csb north", "Dfb north", "Dfc north")
+    ) %>%
+  dplyr::filter(koeppen_code != "-") %>% 
+  pivot_longer(
+    c(obs_mean, mod_mean),
+    names_to = "source",
+    values_to = "gpp"
+    ) %>% 
+  ggplot() +
+  geom_ribbon(
+    aes(x = doy, ymin = obs_min, ymax = obs_max), 
+    fill = "black", 
+    alpha = 0.2
+    ) +
+  geom_line(aes(x = doy, y = gpp, color = source), size = 0.4) +
+  labs(y = expression( paste("Simulated GPP (g C m"^-2, " d"^-1, ")" ) ), 
+       x = "DOY") +
+  facet_wrap( ~climatezone ) +
+  theme_gray() +
+  theme(legend.position = "bottom") +
+  scale_color_manual(
+    name = "Setup: ",
+    values = c("red", "black")
+    )
+```
+
+## Drought response
+
+```{r message = FALSE, warning = FALSE, echo = FALSE}
+source("R/align_events.R")
+source("R/eval_droughtresponse.R")
+
+df_dday_agg <- eval_droughtresponse( 
+  df = out_eval$gpp$fluxnet$data$ddf %>%
+    rename(
+      site = sitename
+      ), 
+  df_flue = readr::read_csv(here::here("data/flue_stocker18nphyt.csv")),
+  before = 20,
+  after = 105,
+  leng_threshold = 10, 
+  nbins = 10, 
+  do_norm = TRUE
+  )
+
+df_dday_agg %>% 
+  ggplot() +
+  geom_hline(
+    yintercept = 0,
+    color = "black",
+    linetype = "dotted"
+    ) +
+  geom_vline(
+    xintercept = 0,
+    color = "black",
+    linetype = "dotted"
+    ) +
+  geom_line(
+    aes(
+      x = dday,
+      y = median
+      ),
+    size = 0.9) +
+  geom_ribbon(
+    aes(
+      x = dday,
+      ymin = q33,
+      ymax = q66
+      ), 
+    alpha = 0.3) +
+  scale_color_manual(
+    values = c(
+      "BRC" = "black",
+      "FULL" = "royalblue"
+      ),
+    name = "Setup"
+    ) +
+  scale_fill_manual(
+    values = c(
+      "BRC" = "black",
+      "FULL" = "royalblue"
+      ),
+    name = "Setup") +
+  ylim(-1.2, 2.2) + 
+  xlim(-20, 105) +
+  scale_x_continuous(
+    expand = c(0,0)
+    ) +
+  scale_y_continuous(
+    expand = c(0,0)
+    ) +
+  labs(
+    x = "Days after drought onset",
+    y = expression( paste( "Bias (g C m"^{-1}, " d"^{-1}, ")")) 
+    ) +
+  theme_classic() +
+  theme(
+    panel.grid.major.y = element_line(),
+    panel.grid.major.x = element_line()
+  )
+```
+
+## Appendix
+
+```{r}
+sessionInfo()
+```
