@@ -50,7 +50,7 @@
 
 heatscatterpoints <- function(x, y, pch = 19, cexplot = 0.5, nrcol = 30, grid = 100, colpal = "heat", simulate = FALSE, daltonize = FALSE, cvd = "p", alpha = NULL, rev = FALSE, xlim = NULL, ylim = NULL, only = "none", add.contour = FALSE, nlevels = 10, color.contour = "black", greyscale = FALSE, log = "", ggplot = FALSE, xlab = NULL, ylab = NULL, ...) {
   # soundcheck #
-
+  
   if (!is.vector(x) | !is.vector(y)) stop("First two argument must be numeric vectors!")
   if (length(x) != length(y)) stop("Data vectors must be of the same length!")
   sound <- which((!(is.na(x) | is.nan(x) | (x == Inf) | (x == -Inf))) & (!(is.na(y) | is.nan(y) | (y == Inf) | (y == -Inf))))
@@ -67,23 +67,23 @@ heatscatterpoints <- function(x, y, pch = 19, cexplot = 0.5, nrcol = 30, grid = 
     y <- y[cut]
     x <- x[cut]
   }
-
+  
   # color handling #
   colpal <- colorpalette(colpal, nrcol, simulate = simulate, daltonize = daltonize, cvd = cvd, alpha = alpha, rev = rev)
   if (greyscale) {
     colpal <- convertgrey(colpal)
   }
-
+  
   # binninmg function #
-
+  
   todiscrete <- function(t, tmin, tmax, bins) {
     erg <- round((t - tmin) / (tmax - tmin) * bins + 0.5)
     erg <- pmin(pmax(erg, 1), bins)
     return(erg)
   }
-
+  
   # kde2d.adj function: adapted and modified from Venables and Ripley's MASS package (distributed under the GPL-2 | GPL-3 license, https://cran.r-project.org/web/packages/MASS/index.html) #
-
+  
   kde2d.adj <- function(x, y, h, n = 25, lims = c(range(x), range(y)), only = "none") {
     nx <- length(x)
     gx <- seq.int(lims[1], lims[2], length.out = n)
@@ -120,9 +120,9 @@ heatscatterpoints <- function(x, y, pch = 19, cexplot = 0.5, nrcol = 30, grid = 
     z <- tcrossprod(matrix(norm.ax, , nx), matrix(norm.ay, , nx)) / (nx * h[1] * h[2])
     list(x = gx, y = gy, z = z)
   }
-
+  
   # handle 'log' option #
-
+  
   if (log == "") {
     xlog <- x
     ylog <- y
@@ -136,29 +136,29 @@ heatscatterpoints <- function(x, y, pch = 19, cexplot = 0.5, nrcol = 30, grid = 
     xlog <- log(x, 10)
     ylog <- log(y, 10)
   }
-
+  
   # estimate two-dimensional KDE for color encoding #
-
+  
   d <- kde2d.adj(xlog, ylog, n = grid, only = only)
-
+  
   # binning #
-
+  
   xdiscrete <- todiscrete(xlog, min(xlog), max(xlog), bins = grid)
   ydiscrete <- todiscrete(ylog, min(ylog), max(ylog), bins = grid)
-
+  
   # color assignment #
-
+  
   getfrommat <- function(a) {
     d$z[a[1], a[2]]
   }
   heatvec <- unlist(apply(cbind(xdiscrete, ydiscrete), 1, getfrommat))
   coldiscrete <- todiscrete(heatvec, min(d$z), max(d$z), bins = nrcol)
-
+  
   if (ggplot) {
     require(ggplot2)
-
+    
     df_plot <- dplyr::tibble(x = x, y = y, col = 1:length(x))
-
+    
     # create new ggplot
     gg <- df_plot %>%
       ggplot(aes(x = x, y = y)) +
@@ -166,20 +166,20 @@ heatscatterpoints <- function(x, y, pch = 19, cexplot = 0.5, nrcol = 30, grid = 
       scale_colour_manual(values = colpal[coldiscrete]) +
       theme_classic() +
       labs(x = xlab, y = ylab)
-
+    
     # print(gg)
   } else {
     # add to existing graphics device #
     points(x, y, col = colpal[coldiscrete], pch = pch, cex = cexplot, ...)
     gg <- NULL
   }
-
+  
   # handle 'add.contour' option #
-
+  
   if (add.contour) {
     contour(d, add = TRUE, nlevels = nlevels, col = color.contour)
   }
-
+  
   return(gg)
 }
 
@@ -246,16 +246,16 @@ LSD.heatscatterpoints <- heatscatterpoints
 
 heatscatter <- function(x, y, pch = 19, cexplot = 0.5, nrcol = 30, grid = 100, colpal = "heat", simulate = FALSE, daltonize = FALSE, cvd = "p", alpha = NULL, rev = FALSE, xlim = NULL, ylim = NULL, xlab = NULL, ylab = NULL, main = "heatscatter", cor = FALSE, method = "spearman", only = "none", add.contour = FALSE, nlevels = 10, color.contour = "black", greyscale = FALSE, log = "", ggplot = FALSE, ...) {
   # parse variable names #
-
+  
   if (is.null(xlab)) {
     xlab <- deparse(substitute(x))
   }
   if (is.null(ylab)) {
     ylab <- deparse(substitute(y))
   }
-
+  
   # soundcheck #
-
+  
   if (!is.vector(x) | !is.vector(y)) stop("First two argument must be numeric vectors!")
   if (length(x) != length(y)) stop("Data vectors must be of the same length!")
   sound <- which((!(is.na(x) | is.nan(x) | (x == Inf) | (x == -Inf))) & (!(is.na(y) | is.nan(y) | (y == Inf) | (y == -Inf))))
@@ -272,9 +272,9 @@ heatscatter <- function(x, y, pch = 19, cexplot = 0.5, nrcol = 30, grid = 100, c
     y <- y[cut]
     x <- x[cut]
   }
-
+  
   # handle 'log' option #
-
+  
   if (log == "") {
     valid <- 1:length(x)
   } else if (log == "x") {
@@ -286,15 +286,15 @@ heatscatter <- function(x, y, pch = 19, cexplot = 0.5, nrcol = 30, grid = 100, c
   }
   x <- x[valid]
   y <- y[valid]
-
+  
   # handle 'cor' option #
-
+  
   if (cor) {
     main <- paste(main, " cor = ", round(cor(x, y, method = method), digits = 2))
   }
-
+  
   # handle graphics device  #
-
+  
   if (ggplot) {
     heatscatterpoints(x, y, pch = pch, cexplot = cexplot, nrcol = nrcol, grid = grid, colpal = colpal, simulate = simulate, daltonize = daltonize, cvd = cvd, alpha = alpha, rev = rev, xlim = xlim, ylim = ylim, only = only, add.contour = add.contour, nlevels = nlevels, color.contour = color.contour, greyscale = greyscale, log = log, ggplot = ggplot, xlab = xlab, ylab = ylab, ...)
   } else {
@@ -372,9 +372,9 @@ heatpairs <- function(mat, main = "heatpairs", xlim = NULL, ylim = NULL, labels 
   if (is.null(labels)) {
     labels <- colnames(mat)
   }
-
+  
   # handle 'log' option #
-
+  
   if (log == "") {
     valid <- 1:dim(mat)[1]
   } else if (log %in% c("x", "y", "xy", "yx")) {
@@ -383,7 +383,7 @@ heatpairs <- function(mat, main = "heatpairs", xlim = NULL, ylim = NULL, labels 
     })
   }
   mat <- mat[valid, ]
-
+  
   pairs(mat, labels = labels, xlim = xlim, ylim = ylim, lower.panel = function(x, y, ...) {
     {if (log == "") {
       x.pos <- diff(xlim) / 2 + xlim[1]
@@ -449,9 +449,9 @@ colorpalette = function(colpal,nrcol = NULL,simulate = FALSE,daltonize = FALSE,c
 {
   if (length(colpal) > 1){palette = colpal}
   else{palette = switch(colpal,
-
+                        
                         # custom-made palettes #
-
+                        
                         heat = c("grey","darkblue","red","orange","gold"),
                         crazyred = c( "#940000","#A50000","#FF5C5C","#FFB9B9"),
                         crazygreen = c("dark green","#009700","green","#C0F5D0"),
@@ -461,9 +461,9 @@ colorpalette = function(colpal,nrcol = NULL,simulate = FALSE,daltonize = FALSE,c
                         jamaica = c("red","yellow","green"),
                         standard = c("brown","gold","yellow","lightyellow","white"),
                         colorblind = c("#000000","#E69F00","#56B4E9","#009E73","#F0E442","#0072B2","#D55E00","#CC79A7"),
-
+                        
                         # palettes from the RColorBrewer package #
-
+                        
                         ylorrd = rev(c("#FFFFCC","#FFEDA0","#FED976","#FEB24C","#FD8D3C","#FC4E2A","#E31A1C","#BD0026","#800026")),
                         ylorbr = rev(c("#FFFFE5","#FFF7BC","#FEE391","#FEC44F","#FE9929","#EC7014","#CC4C02","#993404","#662506")),
                         ylgnbu = rev(c("#FFFFD9","#EDF8B1","#C7E9B4","#7FCDBB","#41B6C4","#1D91C0","#225EA8","#253494","#081D58")),
@@ -491,17 +491,17 @@ colorpalette = function(colpal,nrcol = NULL,simulate = FALSE,daltonize = FALSE,c
                         prgn = c("#40004B","#762A83","#9970AB","#C2A5CF","#E7D4E8","#F7F7F7","#D9F0D3","#A6DBA0","#5AAE61","#1B7837","#00441B"),
                         piyg = c("#8E0152","#C51B7D","#DE77AE","#F1B6DA","#FDE0EF","#F7F7F7","#E6F5D0","#B8E186","#7FBC41","#4D9221","#276419"),
                         brbg = c("#543005","#8C510A","#BF812D","#DFC27D","#F6E8C3","#F5F5F5","#C7EAE5","#80CDC1","#35978F","#01665E","#003C30"),
-
+                        
                         # palettes from the grDevices package #
-
+                        
                         standardterrain = terrain.colors(9),
                         standardtopo = topo.colors(9),
                         standardheat = heat.colors(9),
                         standardrainbow = rainbow(9,start=0.7,end=0.1),
                         standardcm = cm.colors(9),
-
+                        
                         # palettes from the colorRamps package #
-
+                        
                         bl2gr = c("#0000FF","#001AE6","#0033CC","#004DB3","#006699","#008080","#009966","#00B34C","#00CC33","#00E619","#00FF00"),
                         bl2gr2rd = c("#0000BF","#0000FF","#0080FF","#00FFFF","#40FFBF","#80FF80","#BFFF40","#FFFF00","#FF8000","#FF0000","#BF0000"),
                         bl2rd = c("#0000FF","#0033FF","#0066FF","#0099FF","#00CCFF","#00FFFF","#FFCC00","#FF9900","#FF6600","#FF3300","#FF0000"),
