@@ -187,7 +187,7 @@ settings <- list(
   )
 )
 
-pars <- calib_sofun(
+pars_old_data <- calib_sofun(
   drivers = train_driver |>
     dplyr::mutate(
       forcing = purrr::map(
