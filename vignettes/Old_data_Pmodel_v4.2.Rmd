@@ -74,30 +74,7 @@ flue_sites <- readr::read_csv(here("data/flue_stocker18nphyt.csv")) %>%
 ddf_fluxnet_gpp <- readr::read_rds(here("data/ddf_fluxnet_gpp_v4.2.rds"))
 
 # observational data for evaluation
-load(here("data/obs_eval_fluxnet2015.Rdata"))
-
-xdf_correct <- obs_eval$ddf |>
-  unnest(data) |>
-  mutate(week = lubridate::floor_date(date, "week")) |>
-  select(sitename ,week,gpp) |>
-  group_by(sitename, week) |>
-  summarize(gpp = sum(gpp)) |>
-  mutate(inbin = as.factor(week), date = week) |>
-  select(date,inbin,gpp) |>
-  nest()
-
-mdf_correct <- obs_eval$ddf |>
-  unnest(data) |>
-  mutate(month = lubridate::floor_date(date, "month")) |>
-  select(sitename ,month,gpp) |>
-  group_by(sitename, month) |>
-  summarize(gpp = sum(gpp)) |>
-  mutate(date = month) |>
-  select(date,gpp) |>
-  nest()
-
-# TODO: too many NA, 95689 out of 336773 days
-
+obs_eval <- readRDS(here("data","correct_2015_eval_data.rds"))
 
 ```
 
