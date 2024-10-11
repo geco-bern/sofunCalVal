@@ -1,5 +1,4 @@
 
-This workflow runs the P-model with {rsofun} with the latest version and forcing as used in Stocker et al. (2020). Calibration and evaluation data is also as in Stocker et al. (2020). All data is from files created for Stocker et al. (2020).
 
 ```{r setup, include = FALSE}
 # Install packages
@@ -77,10 +76,7 @@ flue_sites <- readr::read_csv(here("data/flue_stocker18nphyt.csv")) %>%
   distinct(site) %>%
   pull(site)
 
-# observational data as calibration target
-# created from daily FLUXNE2015 data by:
-# - using GPP_NT_VUT_REF
-# - using QC>0.8
+
 ddf_fluxnet_gpp <- readr::read_rds(here("data/ddf_fluxnet_gpp_v4.2.rds"))
 
 # observational data for evaluation
