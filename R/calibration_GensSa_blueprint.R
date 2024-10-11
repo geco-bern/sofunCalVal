@@ -7,6 +7,7 @@ library(rsofun)
 library(readr)
 library(dplyr)
 library(tidyr)
+library(ncd4)
 
 set.seed(42)
 
@@ -34,6 +35,35 @@ fdk_site_info <-fdk_site_info[which(fdk_site_info$sitename %in% driver$sitename)
 
 fdk_filter <-fdk_filter[which(fdk_filter$sitename %in% driver$sitename &
                                 fdk_filter$sitename %in% fdk_site_info$sitename),]
+
+nc_file <- nc_open("~/data_scratch/sofuncalvalGPP/sofuncalvalGPP/data/whc_2m.nc")
+
+whc = ncvar_get(nc_file, "whc_2m")
+lons = ncvar_get(nc_file, "lon")
+lats = ncvar_get(nc_file, "lat")
+
+geo <- driver |>
+  unnest(site_info) |>
+  select(lon  , lat)
+
+geo$sitename <- driver$sitename
+
+n <- 1 # parameter to select size of slice to average
+
+old_whc <- lapply(geo$sitename, function(x){
+  tmp <- geo[geo$sitename == x,]
+  lonid <- which(lons > tmp$lon)[1]
+  latid <- which(lats > tmp$lat)[1]
+  whc_grid <- whc[(lonid-n):(lonid+n), (latid-n):(latid+n)]
+  whc_site <- mean(as.numeric(whc_grid, na.rm=T))
+  return(whc_site)
+})
+
+old_whc = unlist(old_whc)
+
+for(i in 1:dim(driver)[1]){
+  driver$site_info[i][[1]][4] <- old_whc[i]
+}
 
 validation <- driver |>
   unnest(forcing) |>
