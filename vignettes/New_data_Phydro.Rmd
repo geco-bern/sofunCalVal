@@ -298,11 +298,9 @@ output <- output |>
 This runs the `eval_sofun()` routine included in the sofunCalVal package, and outputs daily, monthly and annual summary statistics comparing observed with simulated values. We'll retake this same routine when running on the latest release (i.e. the workflow is equivalent but for the release of the `rsofun` package)
 
 ```{r warning=FALSE, message=FALSE, error=FALSE, include = FALSE}
-evalsites <- output %>% 
-  mutate(ntsteps = purrr::map_dbl(data, ~nrow(.))) %>% 
-  dplyr::filter(ntsteps > 0) %>% 
-  pull(sitename)
-# write_rds(evalsites, file = here("data/evalsites.rds"))
+train_site_phydro_25 <- readRDS(here("data/train_site_phydro_25.rds"))
+
+evalsites <- output$sitename[!(output$sitename %in% train_site_phydro_25 )]
 
 settings_eval <- list(
   benchmark = list( gpp = c("fluxnet") ),
