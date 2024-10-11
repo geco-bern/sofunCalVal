@@ -666,8 +666,8 @@ eval_sofun_byvar <- function(varnam,
                        RMSE == .(rmse_lab_annual) ~ "\n" ~
                        bold("Spatial:") ~ italic(R)^2 == .(rsq_lab_spatial) ~ ~
                        RMSE == .(rmse_lab_spatial)),
-            y = expression(paste("Observed LE (J m"^-2, "yr"^-1, ")")),
-            x = expression(paste("Simulated LE (J m"^-2, "yr"^-1, ")"))
+            y = expression(paste("Observed GPP (gC m"^-2, "yr"^-1, ")")),
+            x = expression(paste("Simulated GPP (gC m"^-2, "yr"^-1, ")"))
           )
         
         return(gg)
@@ -689,8 +689,8 @@ eval_sofun_byvar <- function(varnam,
             mod,
             obs,
             heat = FALSE,
-            ylab = expression(paste("observed LE (J m"^-2, "yr"^-1, ")")),
-            xlab = expression(paste("simulated LE (J m"^-2, "yr"^-1, ")")),
+            ylab = expression(paste("observed GPP (gC m"^-2, "yr"^-1, ")")),
+            xlab = expression(paste("simulated GPP (gC m"^-2, "yr"^-1, ")")),
             plot.title = "IAV correlation"
           )
         )
@@ -729,8 +729,8 @@ eval_sofun_byvar <- function(varnam,
           mod,
           obs,
           col = rgb(0, 0, 0, 0.05),
-          ylab = expression(paste("observed LE (J m"^-2, "d"^-1, ")")),
-          xlab = expression(paste("simulated LE (J m"^-2, "d"^-1, ")"))
+          ylab = expression(paste("observed GPP (gC m"^-2, "d"^-1, ")")),
+          xlab = expression(paste("simulated GPP (gC m"^-2, "d"^-1, ")"))
         ))
         out <- idvdf_stats %>%
           mutate(purrr::map(
@@ -750,7 +750,7 @@ eval_sofun_byvar <- function(varnam,
         if (makepdf && !dir.exists(settings$dir_figs)) system(paste0("mkdir -p ", settings$dir_figs))
         if (makepdf) pdf(paste0(settings$dir_figs, "/hist_anomalies_daily_", pattern, ".pdf"))
         par(las = 1)
-        out <- with(idvdf, hist(obs, breaks = 50, col = rgb(0, 0, 0, 0.3), freq = FALSE, main = "Daily anomalies", ylim = c(0, 0.6), xlab = expression(paste("GPP anomaly (J m"^-2, "d"^-1, ")"))))
+        out <- with(idvdf, hist(obs, breaks = 50, col = rgb(0, 0, 0, 0.3), freq = FALSE, main = "Daily anomalies", ylim = c(0, 0.6), xlab = expression(paste("GPP anomaly (gC m"^-2, "d"^-1, ")"))))
         with(idvdf, hist(mod, breaks = metrics$breaks, col = rgb(1, 0, 0, 0.3), freq = FALSE, add = TRUE))
         mtext(bquote(sigma[obs] == .(format(sd(idvdf$obs, na.rm = TRUE), digits = 3))), side = 3, adj = 0, line = 0)
         mtext(bquote(sigma[mod] == .(format(sd(idvdf$mod, na.rm = TRUE), digits = 3))), side = 3, adj = 0, line = -1)
@@ -772,8 +772,8 @@ eval_sofun_byvar <- function(varnam,
           mod,
           obs,
           col = rgb(0, 0, 0, 0.05),
-          ylab = expression(paste("observed LE (J m"^-2, "d"^-1, ")")),
-          xlab = expression(paste("simulated LE (J m"^-2, "d"^-1, ")"))
+          ylab = expression(paste("observed GPP (gC m"^-2, "d"^-1, ")")),
+          xlab = expression(paste("simulated GPP (gC m"^-2, "d"^-1, ")"))
         ))
         out <- ixvdf_stats %>% mutate(purrr::map(data, ~ lines(fitted ~ mod, data = ., col = rgb(0, 0, 1, 0.1)))) # to have it sorted: %>% mutate( data = purrr::map( data, ~arrange( ., mod ) ) )
         title("IXV correlation")
@@ -789,7 +789,7 @@ eval_sofun_byvar <- function(varnam,
         outhist2 <- with(ixvdf, hist(mod, breaks = outhist1$breaks, freq = FALSE, plot = FALSE))
         
         ## plot with proper y-axis
-        plot(outhist1, freq = FALSE, col = rgb(0, 0, 0, 0.3), main = "Anomalies in X-day periods", xlab = expression(paste("GPP anomaly (J m"^-2, "d"^-1, ")")), ylim = c(0, max(outhist1$density, outhist2$density)))
+        plot(outhist1, freq = FALSE, col = rgb(0, 0, 0, 0.3), main = "Anomalies in X-day periods", xlab = expression(paste("GPP anomaly (gC m"^-2, "d"^-1, ")")), ylim = c(0, max(outhist1$density, outhist2$density)))
         plot(outhist2, freq = FALSE, add = TRUE, col = rgb(1, 0, 0, 0.3))
         
         mtext(bquote(sigma[obs] == .(format(sd(ixvdf$obs, na.rm = TRUE), digits = 3))), side = 3, adj = 0, line = 0)
@@ -814,8 +814,8 @@ eval_sofun_byvar <- function(varnam,
             mod_mean,
             obs_mean,
             heat = TRUE,
-            ylab = expression(paste("observed LE (J m"^-2, "d"^-1, ")")),
-            xlab = expression(paste("simulated LE (J m"^-2, "d"^-1, ")")),
+            ylab = expression(paste("observed GPP (gC m"^-2, "d"^-1, ")")),
+            xlab = expression(paste("simulated GPP (gC m"^-2, "d"^-1, ")")),
             plot.title = "Mean-by-DOY correlation"
           )
         )
@@ -863,8 +863,8 @@ eval_sofun_byvar <- function(varnam,
             mod_mean,
             obs_mean,
             heat = TRUE,
-            ylab = expression(paste("observed LE (J m"^-2, "d"^-1, ")")),
-            xlab = expression(paste("simulated LE (J m"^-2, "d"^-1, ")")),
+            ylab = expression(paste("observed GPP (gC m"^-2, "d"^-1, ")")),
+            xlab = expression(paste("simulated GPP (gC m"^-2, "d"^-1, ")")),
             plot.title = "Mean-by-XOY correlation"
           )
         )
@@ -892,8 +892,8 @@ eval_sofun_byvar <- function(varnam,
         
         gg <- modobs_ddf$gg +
           labs(
-            y = expression(paste("observed LE (J m"^-2, "d"^-1, ")")),
-            x = expression(paste("simulated LE (J m"^-2, "d"^-1, ")")),
+            y = expression(paste("observed GPP (gC m"^-2, "d"^-1, ")")),
+            x = expression(paste("simulated GPP (gC m"^-2, "d"^-1, ")")),
             title = "Daily GPP"
           )
         
@@ -910,8 +910,8 @@ eval_sofun_byvar <- function(varnam,
         
         gg <- modobs_mdf$gg +
           labs(
-            x = expression(paste("observed LE (J m"^-2, "d"^-1, ")")),
-            y = expression(paste("simulated LE (J m"^-2, "d"^-1, ")")),
+            x = expression(paste("observed GPP (gC m"^-2, "d"^-1, ")")),
+            y = expression(paste("simulated GPP (gC m"^-2, "d"^-1, ")")),
             title = "Monthly GPP"
           )
         
@@ -928,8 +928,8 @@ eval_sofun_byvar <- function(varnam,
         
         gg <- modobs_adf$gg +
           labs(
-            x = expression(paste("observed LE (J m"^-2, "d"^-1, ")")),
-            y = expression(paste("simulated LE (J m"^-2, "d"^-1, ")")),
+            x = expression(paste("observed GPP (gC m"^-2, "d"^-1, ")")),
+            y = expression(paste("simulated GPP (gC m"^-2, "d"^-1, ")")),
             title = "Annual GPP"
           )
         
@@ -947,9 +947,9 @@ eval_sofun_byvar <- function(varnam,
         
         gg <- modobs_ddf$gg +
           labs(
-            y = expression(paste("observed LE (J m"^-2, "d"^-1, ")")),
-            x = expression(paste("simulated LE (J m"^-2, "d"^-1, ")")),
-            title = "X-daily LE"
+            y = expression(paste("observed GPP (gC m"^-2, "d"^-1, ")")),
+            x = expression(paste("simulated GPP (gC m"^-2, "d"^-1, ")")),
+            title = "X-daily GPP"
           )
         return(gg)
       }
@@ -963,7 +963,7 @@ eval_sofun_byvar <- function(varnam,
         if (makepdf) pdf(paste0(settings$dir_figs, "/meandoy_bysite/meandoy_bysite_", df$site[1], ".pdf"))
         par(las = 1)
         yrange <- range(df$mod_min, df$mod_max, df$obs_min, df$obs_max, na.rm = TRUE)
-        plot(df$doy, df$obs_mean, type = "l", ylim = yrange, ylab = expression(paste("simulated LE (J m"^-2, "d"^-1, ")")), xlab = "DOY")
+        plot(df$doy, df$obs_mean, type = "l", ylim = yrange, ylab = expression(paste("simulated GPP (gC m"^-2, "d"^-1, ")")), xlab = "DOY")
         polygon(c(df$doy, rev(df$doy)), c(df$obs_min, rev(df$obs_max)), border = NA, col = rgb(0, 0, 0, 0.3))
         lines(df$doy, df$mod_mean, col = "red", lwd = 1.75)
         polygon(c(df$doy, rev(df$doy)), c(df$mod_min, rev(df$mod_max)), border = NA, col = rgb(1, 0, 0, 0.3))
@@ -983,7 +983,7 @@ eval_sofun_byvar <- function(varnam,
           if (makepdf) pdf(filn)
           par(las = 1)
           yrange <- range(df$mod_min, df$mod_max, df$obs_min, df$obs_max, na.rm = TRUE)
-          plot(df$doy, df$obs_mean, type = "l", ylim = yrange, ylab = expression(paste("simulated LE (J m"^-2, "d"^-1, ")")), xlab = "DOY")
+          plot(df$doy, df$obs_mean, type = "l", ylim = yrange, ylab = expression(paste("simulated GPP (gC m"^-2, "d"^-1, ")")), xlab = "DOY")
           polygon(c(df$doy, rev(df$doy)), c(df$obs_min, rev(df$obs_max)), border = NA, col = rgb(0, 0, 0, 0.3))
           lines(df$doy, df$mod_mean, col = "red", lwd = 1.75)
           if (!is.na(dashed)) lines(dashed$doy, dashed$mod_mean, col = "red", lwd = 0.75, lty = 1)
@@ -1004,7 +1004,7 @@ eval_sofun_byvar <- function(varnam,
         if (makepdf) pdf(paste0(settings$dir_figs, "/meanxoy_bysite/meanxoy_bysite_", df$site[1], ".pdf"))
         par(las = 1)
         yrange <- range(df$mod_min, df$mod_max, df$obs_min, df$obs_max, na.rm = TRUE)
-        plot(df$xoy, df$obs_mean, type = "l", ylim = yrange, ylab = expression(paste("simulated LE (J m"^-2, "d"^-1, ")")), xlab = "DOY")
+        plot(df$xoy, df$obs_mean, type = "l", ylim = yrange, ylab = expression(paste("simulated GPP (gC m"^-2, "d"^-1, ")")), xlab = "DOY")
         polygon(c(df$xoy, rev(df$xoy)), c(df$obs_min, rev(df$obs_max)), border = NA, col = rgb(0, 0, 0, 0.3))
         lines(df$xoy, df$mod_mean, col = "red", lwd = 1.75)
         polygon(c(df$xoy, rev(df$xoy)), c(df$mod_min, rev(df$mod_max)), border = NA, col = rgb(1, 0, 0, 0.3))
