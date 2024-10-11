@@ -236,11 +236,13 @@ obs_eval$breaks <- unique((breaks_preparation$breaks))[-1]
 Model parameters are determined for this version from calibration. The code for model calibration is not shown. See `vignettes/1_p-model_reference_run.Rmd` for the code.
 
 ```{r}
+par_calib <-  read_rds(here("data","calibration_new_data_75.rds"))
+
 params_modl <- list(
-    kphio              = 0.04998,    # setup ORG in Stocker et al. 2020 GMD
-    kphio_par_a        = 0.0,        # set to zero to disable temperature-dependence of kphio
-    kphio_par_b        = 1.0,
-    soilm_thetastar    = 0.6 * 240,  # to recover old setup with soil moisture stress
+    kphio              = par_calib$par[["kphio"]],    
+    kphio_par_a        = par_calib$par[["kphio_par_a"]],       
+    kphio_par_b        = par_calib$par[["kphio_par_b"]],
+    soilm_thetastar    = par_calib$par[["soilm_thetastar"]],  
     soilm_betao        = 0.0,
     beta_unitcostratio = 146.0,
     rd_to_vcmax        = 0.014,      # value from Atkin et al. 2015 for C3 herbaceous
@@ -280,10 +282,9 @@ output <- output |>
 This runs the `eval_sofun()` routine included in the sofunCalVal package, and outputs daily, monthly and annual summary statistics comparing observed with simulated values. We'll retake this same routine when running on the latest release (i.e. the workflow is equivalent but for the release of the `rsofun` package)
 
 ```{r warning=FALSE, message=FALSE, error=FALSE, include = FALSE}
-evalsites <- output %>% 
-  mutate(ntsteps = purrr::map_dbl(data, ~nrow(.))) %>% 
-  dplyr::filter(ntsteps > 0) %>% 
-  pull(sitename)
+train_site_newdata_75 <- readRDS(here("data/train_site_newdata_75.rds"))
+
+evalsites <- output$sitename[!(output$sitename %in% train_site_newdata_75 )]
 
 # write_rds(evalsites, file = here("data/evalsites.rds"))
 
