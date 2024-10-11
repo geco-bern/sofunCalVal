@@ -5,7 +5,6 @@ library(readr)
 
 load(here::here("data/obs_eval_fluxnet2015.Rdata"))
 
-
 months <- obs_eval$ddf |>
   unnest(data) |>
   mutate(gpp = ifelse(gpp > 0,gpp,0)) |>
@@ -80,7 +79,7 @@ for(i in unique(week$sitename)){
 }
 
 weeks <- weeks |>
-  mutate(gpp = ifelse(gpp > 0,gpp,0)) |>
+  mutate(gpp = ifelse(gpp > 0,gpp,NA)) |>
   group_by(sitename, weeks)|>
   summarise(gpp = sum(gpp, na.rm = TRUE))
 
@@ -93,12 +92,10 @@ days_not_na <- weeks |>
 
 weeks <- left_join(weeks,days_not_na,by =c("sitename","weeks"))
 
-weeks <- weeks |> mutate(gpp = ifelse(is.na(n),gpp,gpp*(7/n))) |>
-  select(-n)
-
 weeks <- weeks |>
   group_by(sitename) |>
   rename(inbin = weeks) |>
+  mutate(inbin = factor(inbin)) |>
   nest(data = c(inbin,gpp)) |>
   arrange(sitename)
 
@@ -107,5 +104,3 @@ xdf <- right_join(obs_eval$xdf |> select(-data),weeks, by="sitename")
 obs_eval$xdf <- xdf
 
 write_rds(obs_eval, here::here("data","correct_2015_eval_data.rds"))
-
-
