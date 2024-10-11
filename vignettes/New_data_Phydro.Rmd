@@ -231,33 +231,6 @@ obs_eval$breaks <- unique((breaks_preparation$breaks))[-1]
 # calibsites # TODO: define which sites are for calibration and which are for evaluation
            # write_rds(calibsites, file = here("data/calibsites.rds"))
 
-# settings_calib <- list(
-#   method      = "gensa",
-#   targetvars  = c("gpp"),
-#   timescale   = list(targets_obs = "d"),
-#   metric      = cost_rmse_fullstack,
-#   dir_results = "./",
-#   name        = "v4.2",
-#   control = list(
-#     max.call = 100,
-#     trace.mat = TRUE
-#   ),
-#   par = list(
-#     kphio = list( lower=0.03, upper=0.1, init= 0.05 ),
-#     a = list( lower=0.0,  upper=1.0, init=0.0 ),
-#     b = list( lower=0.0,  upper=1.5, init=0.6 )
-#     )
-# )
-
-# # THIS IS NOT RUN, RUN BEFOREHAND AND SPECIFY PARAMETERS BY HAND BELOW
-# set.seed(1982)
-# pars <- calib_sofun(
-#     drivers  = df_drivers_fluxnet2015 |> 
-#       dplyr::filter(sitename %in% calibsites) |> 
-#       dplyr::mutate(forcing = purrr::map(forcing, ~rename(., rain = rainf, snow = snowf))),
-#   obs      = ddf_fluxnet_gpp,
-#   settings = settings_calib
-#   )
 
 ```
 
@@ -268,6 +241,9 @@ Model parameters are determined for this version from calibration. The code for 
 # Model run
 
 ```{r warning = FALSE, message = FALSE}
+
+par_calib <-  read_rds(here("data","calibration_new_data_phydro_25.rds"))
+
 output <- NULL
 
 for(i in 1:dim(driver[1])){
@@ -279,15 +255,14 @@ for(i in 1:dim(driver[1])){
   driver$forcing_acclim[[i]] <- driver$forcing[[i]]
 
   params_modl <- list(
-    kphio              = 0.05797586,    # setup ORG in Stocker et al. 2020 GMD  # TODO: or do we need to have 0.0288
-    kphio_par_a        = -0.0025,     
-    kphio_par_b        = 20,
-    rd_to_vcmax        = 0.014,      # value from Atkin et al. 2015 for C3 herbaceous
-    soilm_thetastar    = 144,
+    kphio              = par_calib$par[["kphio"]],   
+    kphio_par_a        = par_calib$par[["kphio_par_a"]],       
+    kphio_par_b        = par_calib$par[["kphio_par_b"]],
+    rd_to_vcmax        = 0.014,  
+    soilm_thetastar    = par_calib$par[["soilm_thetastar"]], 
     beta_unitcostratio = 146,
     tau_acclim         = 30,
-    kc_jmax            = 0.54131889,
-    whc                = driver$site_info[[i]]$whc # TODO: use the constant whc from the nc file.
+    kc_jmax            = 0.54131889
   )
   
  tmp <- rsofun::runread_pmodel_f(
@@ -309,26 +284,6 @@ output |>
 #   <chr>    <list>           <list>           
 # 1 FR-Hes   <tibble [1 × 4]> <tibble [1 × 24]>
 # 2 SE-Nor   <tibble [1 × 4]> <tibble [1 × 24]>
-
-output |>
-  unnest(data) |>
-    filter(gpp < 0)
-# # TODO: check these days on some sites: It appears that gs-acclimation does not work. GS is negative. And AET is mistakingly larger than the pet. But interestingly not negative.
-# # A tibble: 11 × 27
-#    sitename site_info date       year_dec fapar       gpp   aet       le    pet    vcmax    jmax vcmax25  jmax25  gs_accl wscal     chi    iwue     rd  tsoil netrad wcont  snow
-#    <chr>    <list>    <date>        <dbl> <dbl>     <dbl> <dbl>    <dbl>  <dbl>    <dbl>   <dbl>   <dbl>   <dbl>    <dbl> <dbl>   <dbl>   <dbl>  <dbl>  <dbl>  <dbl> <dbl> <dbl>
-#  1 CH-Cha   <tibble>  2020-01-27    2020. 0.831 -171848.   1.91 4759970. 0.761   4.01e-6 1.82e-5 1.61e-5 5.99e-5 -3.37e+2 0.997 -0.185  4.91e-4 0.0368  2.61   37.0   718.     0
-#  2 CH-Cha   <tibble>  2020-01-28    2020. 0.833   -3908.   1.92 4774821  0.269   4.63e-6 1.93e-5 1.70e-5 5.86e-5 -7.60e+0 1     -0.197  4.96e-4 0.0439  2.62   12.6   721.     0
-#  3 CH-Cha   <tibble>  2020-02-04    2020. 0.839    -299.   1.96 4889637  0.822   4.21e-6 1.76e-5 1.66e-5 5.53e-5 -6.20e-1 1     -0.122  4.65e-4 0.0411  4.15   38.9   721.     0
-#  4 CH-Cha   <tibble>  2020-02-05    2020. 0.840    -189.   1.90 4739402. 0.449   4.38e-6 1.79e-5 1.75e-5 5.70e-5 -3.93e-1 0.997 -0.119  4.63e-4 0.0425  4.21   21.4   719.     0
-#  5 CH-Dav   <tibble>  2020-05-26    2020. 0.637     -41.6  2.35 5819488  5.69    1.46e-5 5.47e-5 4.82e-5 1.38e-4 -8.82e-2 0.543 -0.0967 4.54e-4 0.170   7.86  225.    132.     0
-#  6 CZ-Lnz   <tibble>  2020-03-01    2020. 0.339    -125.   3.15 7814878. 2.16    2.20e-6 9.63e-6 7.51e-6 2.58e-5 -2.57e-1 0.554 -0.128  4.67e-4 0.0238  6.41   38.4  1308.     0
-#  7 FR-FBn   <tibble>  2020-12-31    2021. 0.629    -427.   2.19 5447722  1.08    3.10e-6 1.37e-5 1.46e-5 4.32e-5 -8.83e-1 0.478 -0.125  4.66e-4 0.0369  9.32  -16.8  2853.     0
-#  8 GL-Dsk   <tibble>  2020-05-19    2020. 0.123  -10747.   1.63 4069862. 3.22    5.67e-6 9.31e-6 2.32e-5 3.65e-5 -2.17e+1 0.995 -0.155  4.78e-4 0.0390 -0.595 155.    664.     0
-#  9 IT-Lav   <tibble>  2020-11-04    2021. 0.756    -242.   2.41 5951814. 0.932   9.72e-6 3.69e-5 2.92e-5 8.18e-5 -4.93e-1 0.993 -0.143  4.73e-4 0.126   9.38   35.5  2275.     0
-# 10 IT-Lav   <tibble>  2020-12-31    2021. 0.408    -230.   1.56 3898462. 0.0690  1.61e-6 7.72e-6 9.55e-6 3.54e-5 -4.87e-1 0.999 -0.101  4.56e-4 0.0132  3.29    3.76 2289.     0
-# 11 IT-Tor   <tibble>  2020-05-28    2020. 0.703     -86.4  3.13 7751302  3.94    2.07e-5 7.91e-5 5.74e-5 1.76e-4 -1.80e-1 0.950 -0.118  4.63e-4 0.241   6.74  145.    632.     0
-
 
 # remove sites where it didn't work
 output <- output |>
