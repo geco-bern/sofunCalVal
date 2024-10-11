@@ -104,7 +104,7 @@ train_test_division <- function(meta_info,test_precentage){
    return(result)
 }
 
-train_sitename <- train_test_division(driver,fdk_site_info,0.5)
+train_sitename <- train_test_division(fdk_site_info,0.5)
 
 train_driver <- driver[driver$sitename %in% train_sitename,]
 
