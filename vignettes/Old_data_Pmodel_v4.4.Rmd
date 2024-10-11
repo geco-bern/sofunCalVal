@@ -3,7 +3,7 @@ This workflow runs the P-model with {rsofun} with the latest version and forcing
 
 ```{r setup, include = FALSE}
 # Install packages
-# if ("rsofun" %in% installed.packages()) remove.packages("rsofun")
+if ("rsofun" %in% installed.packages()) remove.packages("rsofun")
 devtools::install_github(
   "geco-bern/rsofun",
   ref = "HEAD",
@@ -112,11 +112,13 @@ siteinfo_fluxnet2015 <- df_drivers_fluxnet2015 |>
 Model parameters are determined for this version from calibration. The code for model calibration is not shown. See `vignettes/0_p-model_current_run.Rmd` for the code.
 
 ```{r}
+par_calib <-  read_rds(here("data","calibration_old_data.rds"))
+
 params_modl <- list(
-    kphio              = 0.04998,    # setup ORG in Stocker et al. 2020 GMD
-    kphio_par_a        = 0.0,        # set to zero to disable temperature-dependence of kphio
-    kphio_par_b        = 1.0,
-    soilm_thetastar    = 0.6 * 240,  # to recover old setup with soil moisture stress
+    kphio              = par_calib$par[["kphio"]], 
+    kphio_par_a        = par_calib$par[["kphio_par_a"]],       
+    kphio_par_b        = par_calib$par[["kphio_par_b"]],
+    soilm_thetastar    = par_calib$par[["soilm_thetastar"]],
     soilm_betao        = 0.0,
     beta_unitcostratio = 146.0,
     rd_to_vcmax        = 0.014,      # value from Atkin et al. 2015 for C3 herbaceous
