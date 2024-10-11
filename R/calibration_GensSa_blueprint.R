@@ -7,7 +7,7 @@ library(rsofun)
 library(readr)
 library(dplyr)
 library(tidyr)
-library(ncd4)
+library(ncdf4)
 
 set.seed(42)
 
