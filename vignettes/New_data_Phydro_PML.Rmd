@@ -231,20 +231,7 @@ obs_eval$breaks <- unique((breaks_preparation$breaks))[-1]
 ```{r warning = FALSE, message = FALSE}
 par_calib <-  read_rds(here("data","calibration_new_data_phydro_25.rds"))
 
-output <- NULL
-
-for(i in 1:dim(driver[1])){
-  
-  driver$params_siml[[i]]$use_gs     <- TRUE
-  driver$params_siml[[i]]$use_pml    <- TRUE
-  driver$params_siml[[i]]$use_phydro <- FALSE
-  
-  driver$forcing_acclim[[i]] <- driver$forcing[[i]]
-
-  driver$site_info[[i]]$canopy_height    <- fdk_site_info$canopy_height[i]
-  driver$site_info[[i]]$reference_height <- fdk_site_info$reference_height[i]
-  
-  params_modl <- list(
+params_modl <- list(
     kphio              = par_calib$par[["kphio"]],   
     kphio_par_a        = par_calib$par[["kphio_par_a"]],       
     kphio_par_b        = par_calib$par[["kphio_par_b"]],
@@ -254,18 +241,19 @@ for(i in 1:dim(driver[1])){
     tau_acclim         = 30,
     kc_jmax            = 0.54131889
   )
+
+driver <- driver |> unnest(params_siml) |>
+  mutate(use_gs = TRUE,
+         use_phydro = FALSE,
+         use_pml= TRUE) |>
+  group_by(sitename) |>
+  nest(params_siml = c(spinup, spinupyears, recycle, outdt, ltre,  ltne,  ltrd,  ltnd,  lgr3,  lgn3,  lgr4 ,
+                       use_gs, use_phydro, use_pml))
   
-  
- tmp <- rsofun::runread_pmodel_f(
-  driver[i,],
+ output <- rsofun::runread_pmodel_f(
+  driver,
   par = params_modl
  )
-  
-  
-  output <- rbind(output,tmp)
-
-}
-
 # TODO: some sites do not work here:
 output |>
   mutate(len = purrr::map_int(data, ~nrow(.))) |>
