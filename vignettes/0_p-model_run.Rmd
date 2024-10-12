@@ -33,14 +33,6 @@ source("../R/analyse_modobs2.R")
 # Set seed
 set.seed(42)
 
-<<<<<<< HEAD:vignettes/p-model_run.Rmd
-devtools::install_github("stineb/LSD")
-devtools::install_github("geco-bern/rsofun")
-install.packages("rpmodel")
-library(rsofun)
-
-=======
->>>>>>> 84aa9e22209b4413a74892c84f7352ecec27785c:vignettes/0_p-model_run.Rmd
 # only select the sites from the New Phytologist paper
 # load site list and filter on these (see below)
 flue_sites <- readr::read_csv( "../data/flue_stocker18nphyt.csv" ) %>%
