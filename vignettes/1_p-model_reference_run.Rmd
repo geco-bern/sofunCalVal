@@ -1,6 +1,6 @@
 ---
 title: "P-model reference run"
-author: "Beni Stocker"
+author: "Koen Hufkens and Beni Stocker"
 output: rmarkdown::html_vignette
 vignette: >
   %\VignetteIndexEntry{P-model reference run}
@@ -10,7 +10,7 @@ vignette: >
 
 This workflow runs the P-model with {rsofun} v4.2 and forcing as used in Stocker et al. (2020). Calibration and evaluation data is also as in Stocker et al. (2020). All data is from files created for Stocker et al. (2020). Results are almost identical as presented in Stocker et al. (2020). Slight deviations are related to the fact that rsofun v4.2 performs time series simulations with continuous acclimation - not for monthly means as done in Stocker et al. (2020). The workflow here provides an exact reproduction of code in [sofunBench for v4.2](https://github.com/geco-bern/sofunBench/tree/main/tag_v4.2).
 
-```{r setup, include = FALSE, eval=FALSE}
+```{r setup, include = FALSE}
 # Install packages
 # if ("rsofun" %in% installed.packages()) remove.packages("rsofun")
 devtools::install_github(
@@ -20,9 +20,7 @@ devtools::install_github(
   )
 
 install.packages("rpmodel")
-```
 
-```{r echo = FALSE}
 # Load packages
 library(rpmodel)
 library(rsofun)
@@ -42,12 +40,7 @@ source("../R/analyse_modobs2.R")
 
 # Set seed
 set.seed(42)
-```
-  
 
-## Load data
-
-```{r}
 # model forcing data
 load(here("data/df_drivers_fluxnet2015.Rdata"))
 
@@ -90,12 +83,8 @@ ddf_fluxnet_gpp <- readr::read_rds(here("data/ddf_fluxnet_gpp_v4.2.rds"))
 
 # observational data for evaluation
 load(here("data/obs_eval_fluxnet2015.Rdata"))
-```
 
 ## Calibrate model
-
-Define calibration sites.
-```{r message=FALSE, warning=FALSE}
 siteinfo_fluxnet2015 <- df_drivers_fluxnet2015 |> 
   select(sitename, site_info) |> 
   unnest(site_info)
@@ -109,10 +98,7 @@ calibsites <- siteinfo_fluxnet2015 %>%
   pull(sitename)
 
 write_rds(calibsites, file = here("data/calibsites.rds"))
-```
 
-Define calibration settings.
-```{r}
 settings_calib <- list(
   method      = "gensa",
   targetvars  = c("gpp"),
@@ -130,37 +116,32 @@ settings_calib <- list(
     b = list( lower=0.0,  upper=1.5, init=0.6 )
     )
 )
+
+# # THIS IS NOT RUN, RUN BEFOREHAND AND SPECIFY PARAMETERS BY HAND BELOW
+# set.seed(1982)
+# pars <- calib_sofun(
+#     drivers  = df_drivers_fluxnet2015 |> 
+#       dplyr::filter(sitename %in% calibsites) |> 
+#       dplyr::mutate(forcing = purrr::map(forcing, ~rename(., rain = rainf, snow = snowf))),
+#   obs      = ddf_fluxnet_gpp,
+#   settings = settings_calib
+#   )
+
 ```
 
-Calibrate the model.
-```{r warning=FALSE, message=FALSE, eval=TRUE}
-set.seed(1982)
-pars <- calib_sofun(
-    drivers  = df_drivers_fluxnet2015 |> 
-      dplyr::filter(sitename %in% calibsites) |> 
-      dplyr::mutate(forcing = purrr::map(forcing, ~rename(., rain = rainf, snow = snowf))),
-  obs      = ddf_fluxnet_gpp,
-  settings = settings_calib
-  )
-```
+# Model parameters
 
-The calibrated parameters are returned by `calib_sofun()` as part of the list:
-```{r}
-print(pars$par)
-```
+Model parameters are determined for this version from calibration. The code for model calibration is not shown. See `vignettes/1_p-model_reference_run.Rmd` for the code.
 
-Update model parameters.
 ```{r}
 params_modl <- list(
-    kphio           = pars$par[1],
-    soilm_par_a     = pars$par[2],
-    soilm_par_b     = pars$par[3],
+    kphio           = 0.09423773,  # pars$par[1],
+    soilm_par_a     = 0.33349283,  # pars$par[2],
+    soilm_par_b     = 1.45602286,  # pars$par[3],
     tau_acclim_tempstress = 10,   # irrelevant - not calibrated
     par_shape_tempstress  = 0.0   # irrelevant - not calibrated
   )
 ```
-
-This routine loads the reference model version to then execute a reference model (rsofun v4.2) run on the sites as used in the Stocker et al. 2018 New Phytologist paper. The output of the analysis serves as a soft (visual benchmark for model performance). This data will be updated whenever a new tag is released in the rsofun github repo (or when manually triggered from the github interface).
 
 # Model run
 
@@ -204,9 +185,10 @@ out_eval <- eval_sofun(
 ```{r warning=FALSE, message=FALSE, error=FALSE, echo = FALSE}
 out_eval$gpp$fluxnet$metrics %>% 
   bind_rows(.id = "Level") %>% 
-  kable
+  kable()
 ```
-## Daily and annual scatterplots
+
+## 8-daily, spatial and annual
 
 ```{r message = FALSE, warning = FALSE, echo = FALSE}
 out_eval$gpp$fluxnet$plot$gg_modobs_xdaily
@@ -337,7 +319,7 @@ out_pmodel <- rpmodel(
   fapar          = 1,            # fraction  ,
   ppfd           = 30,           # mol/m2/d,
   elv            = 0,            # m.a.s.l.,
-  kphio          = pars$par[1],     # quantum yield efficiency as calibrated
+  kphio          = 0.09423773, #pars$par[1],     # quantum yield efficiency as calibrated
   beta           = 146,          # unit cost ratio a/b,
   c4             = FALSE,
   method_jmaxlim = "wang17",
@@ -364,7 +346,7 @@ drivers_rpmodel <- df_drivers_fluxnet2015 |>
                                                        soilmstress = FALSE,
                                                        tempstress = FALSE)))
 
-params_modl$kphio = pars$par[1]
+params_modl$kphio = 0.09423773 #pars$par[1]
 params_modl$tau_acclim_tempstress = 1.0
 
 out_rsofun <- rsofun::runread_pmodel_f(

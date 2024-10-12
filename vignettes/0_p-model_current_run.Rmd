@@ -1,6 +1,6 @@
 ---
 title: "P-model current run"
-author: "Koen Hufkens"
+author: "Koen Hufkens and Beni Stocker"
 output: rmarkdown::html_vignette
 vignette: >
   %\VignetteIndexEntry{P-model current run}
@@ -8,10 +8,18 @@ vignette: >
   %\usepackage[utf8]{inputenc}
 ---
 
+This workflow runs the P-model with {rsofun} with the latest version and forcing as used in Stocker et al. (2020). Calibration and evaluation data is also as in Stocker et al. (2020). All data is from files created for Stocker et al. (2020).
+
 ```{r setup, include = FALSE}
 # Install packages
 # if ("rsofun" %in% installed.packages()) remove.packages("rsofun")
-devtools::install_github("geco-bern/rsofun", upgrade = "never", force = TRUE)
+devtools::install_github(
+  "geco-bern/rsofun",
+  ref = "HEAD",
+  upgrade = "never",
+  force = TRUE
+  )
+
 install.packages("rpmodel")
 
 # Load packages
@@ -24,6 +32,7 @@ library(ggplot2)
 library(lubridate)
 library(knitr)
 library(ggthemes)
+library(here)
 
 # Load functions
 source("../R/eval_sofun.R")
@@ -35,75 +44,157 @@ set.seed(42)
 
 # only select the sites from the New Phytologist paper
 # load site list and filter on these (see below)
-flue_sites <- readr::read_csv( "../data/flue_stocker18nphyt.csv" ) %>%
-              dplyr::filter( !is.na(cluster) ) %>% 
-              distinct(site) %>% 
-              pull(site)
+flue_sites <- readr::read_csv(here::here("data/flue_stocker18nphyt.csv")) %>%
+  dplyr::filter( !is.na(cluster) ) %>%
+  distinct(site) %>%
+  pull(site)
 
-# load fluxnet driver data (prepared)
-load("../data/df_drivers_fluxnet2015.rda")
+# model forcing data
+load(here("data/df_drivers_fluxnet2015.Rdata"))
 
-# load observational data (prepared)
-load("../data/obs_eval_fluxnet2015.rda")
+df_drivers_fluxnet2015 <- df_drivers_fluxnet2015 %>%
+  dplyr::select(sitename, forcing) %>%
+  unnest(forcing) %>%
+  dplyr::filter(!(month(date)==2 & mday(date)==29)) %>%
 
-# convert data to adhere to new p-model naming conventions
-drivers <- df_drivers_fluxnet2015 %>%
-  dplyr::select(sitename, forcing) %>% 
-  unnest(forcing) %>% 
-  dplyr::filter(!(month(date)==2 & mday(date)==29)) %>% 
-  
   ## model requires flux per seconds now
-  mutate(
-    prec = prec / (60*60*24),
-    ppfd = ppfd / (60*60*24),
-    rain = prec,
-    snow = 0,
-    tmin = temp,
-    tmax = temp
-  ) %>% 
+  mutate(prec = prec / (60*60*24), ppfd = ppfd / (60*60*24)) %>%
 
-  group_by(sitename) %>% 
+  ## assuming all precipitation in liquid form
+  mutate(rainf = prec, snowf = 0) %>%
+
+  ## required for new version, but not used because
+  mutate(tmin = temp, tmax = temp) %>%
+
+  group_by(sitename) %>%
   nest() %>%
-  rename(forcing = data) %>% 
+  rename(forcing = data) %>%
   right_join(
-    df_drivers_fluxnet2015 %>% 
+    df_drivers_fluxnet2015 %>%
       dplyr::select(-forcing),
     by = "sitename"
-  ) %>% 
-  ungroup() %>% 
-  rename(
-    site_info = siteinfo,
-    params_soil = df_soiltexture
-    )
+  ) %>%
+  ungroup() %>%
+  rename(site_info = siteinfo, params_soil = df_soiltexture)
 
-# only retain New Phytologist sites!
-drivers <- drivers %>%
-  filter(sitename %in% flue_sites)
+# site selection: good-quality sites from analysis of Stocker et al. (2018) New Phyt.
+flue_sites <- readr::read_csv(here("data/flue_stocker18nphyt.csv")) %>%
+  dplyr::filter( !is.na(cluster) ) %>%
+  distinct(site) %>%
+  pull(site)
+
+# observational data as calibration target
+# created from daily FLUXNE2015 data by:
+# - using GPP_NT_VUT_REF
+# - using QC>0.8
+ddf_fluxnet_gpp <- readr::read_rds(here("data/ddf_fluxnet_gpp_v4.2.rds"))
+
+# observational data for evaluation
+load(here("data/obs_eval_fluxnet2015.Rdata"))
+
+# site meta info
+siteinfo_fluxnet2015 <- df_drivers_fluxnet2015 |>
+  select(sitename, site_info) |>
+  unnest(site_info)
+
+# calibration sites
+calibsites <- siteinfo_fluxnet2015 %>%
+  dplyr::filter(!(sitename %in% c("DE-Akm", "IT-Ro1"))) %>%  # excluded because fapar data could not be downloaded (WEIRD)
+  # dplyr::filter(!(sitename %in% c("AU-Wom"))) %>%  # excluded because no GPP data was found in FLUXNET file
+  dplyr::filter(sitename != "FI-Sod") %>%  # excluded because some temperature data is missing
+  dplyr::filter( c4 %in% c(FALSE, NA) & classid != "CRO" & classid != "WET" ) %>%
+  dplyr::filter( sitename %in% flue_sites ) %>%
+  pull(sitename)
+
+
+# Calibrate model
+siteinfo_fluxnet2015 <- df_drivers_fluxnet2015 |> 
+  select(sitename, site_info) |> 
+  unnest(site_info)
+
+calibsites <- siteinfo_fluxnet2015 %>% 
+  dplyr::filter(!(sitename %in% c("DE-Akm", "IT-Ro1"))) %>%  # excluded because fapar data could not be downloaded (WEIRD)
+  # dplyr::filter(!(sitename %in% c("AU-Wom"))) %>%  # excluded because no GPP data was found in FLUXNET file
+  dplyr::filter(sitename != "FI-Sod") %>%  # excluded because some temperature data is missing
+  dplyr::filter( c4 %in% c(FALSE, NA) & classid != "CRO" & classid != "WET" ) %>%
+  dplyr::filter( sitename %in% flue_sites ) %>%
+  pull(sitename)
+
+write_rds(calibsites, file = here("data/calibsites.rds"))
+
+# GenSa calibration settings for v4.4
+settings_calib <- list(
+  method = "GenSA",
+  metric = cost_rmse_pmodel,
+  control = list(maxit = 100),
+  par = list(
+    kphio = list(lower = 0.03, upper = 0.15, init = 0.05),
+    kphio_par_a = list(lower = -0.005, upper = 0, init = -0.0025),
+    soilm_betao = list(lower = 0, upper = 1, init = 0.2),
+    kc_jmax = list(lower = 0.2, upper = 0.8, init = 0.41)
+  )
+)
+
+# fixed (not calibrated) model parameters
+par_fixed = list(
+  kphio_par_b        = 20,
+  soilm_thetastar    = 0.6*240,
+  beta_unitcostratio = 146.0,
+  rd_to_vcmax        = 0.014,
+  tau_acclim         = 30.0
+  )
+
+# # THIS IS NOT RUN, RUN BEFOREHAND AND SPECIFY PARAMETERS BY HAND BELOW
+# # Calibrate the model.
+# set.seed(1982)
+# par_calib <- calib_sofun(
+#   drivers = df_drivers_fluxnet2015 |>
+#     dplyr::filter(sitename %in% calibsites) |>
+#     dplyr::mutate(forcing = purrr::map(forcing, ~rename(., rain = rainf, snow = snowf))) |>
+#     dplyr::mutate(forcing = purrr::map(forcing, ~mutate(., netrad = 0))),
+#   obs = ddf_fluxnet_gpp,
+#   settings = settings_calib,
+#   par_fixed = par_fixed,
+#   targets = "gpp"
+#   # verbose = TRUE
+# )
 ```
 
-This routine loads the reference model version to then execute a reference model run on the sites as used in the Stocker et al 2018 New Phytologist paper. The output of the analysis serves as a soft (visual benchmark for model performance). This data will be updated whenever a new tag is released in the rsofun github repo (or when manually triggered from the github interface).
+# Model parameters
+
+Model parameters are determined for this version from calibration. The code for model calibration is not shown. See `vignettes/0_p-model_current_run.Rmd` for the code.
+
+```{r}
+params_modl <- list(
+  kphio              = 0.04090209, # 0.09423773,  # par_calib$par["kphio"],
+  kphio_par_a        = -0.001366283, # par_calib$par["kphio_par_a"],
+  kphio_par_b        = par_fixed["kphio_par_b"],
+  soilm_thetastar    = par_fixed["soilm_thetastar"],
+  soilm_betao        = 0.683499654, # par_calib$par["soilm_betao"], # 0,  # 
+  beta_unitcostratio = par_fixed["beta_unitcostratio"],
+  rd_to_vcmax        = par_fixed["rd_to_vcmax"],
+  tau_acclim         = par_fixed["tau_acclim"],
+  kc_jmax            = 0.200000000 # par_calib$par["kc_jmax"] # 0.41  # 
+)
+```
 
 # Model run
 
 ```{r warning = FALSE, message = FALSE}
-# use a fixed model parameter set
-# assuming the same underlying mechanics
-# we'll not update these in new runs
-params_modl <- list(
-    kphio           = 0.09423773,
-    soilm_par_a     = 0.33349283,
-    soilm_par_b     = 1.45602286,
-    
-    # Note, latter parameters were not calibrated
-    tau_acclim_tempstress = 10, 
-    par_shape_tempstress  = 0.0 
-  )
-
-# run the model
 output <- rsofun::runread_pmodel_f(
-  drivers,
+  df_drivers_fluxnet2015 |>
+    dplyr::mutate(
+      forcing = purrr::map(
+        forcing,
+        ~rename(., rain = rainf, snow = snowf))
+      ) |>
+    dplyr::mutate(
+      forcing = purrr::map(
+        forcing,
+        ~mutate(., netrad = 0))
+    ),
   par = params_modl
-  )
+)
 ```
 
 # Run evaluation
@@ -111,24 +202,25 @@ output <- rsofun::runread_pmodel_f(
 This runs the `eval_sofun()` routine included in the sofunCalVal package, and outputs daily, monthly and annual summary statistics comparing observed with simulated values. We'll retake this same routine when running on the latest release (i.e. the workflow is equivalent but for the release of the `rsofun` package)
 
 ```{r warning=FALSE, message=FALSE, error=FALSE, include = FALSE}
-evalsites <- output %>% 
-  mutate(ntsteps = purrr::map_dbl(data, ~nrow(.))) %>% 
-  dplyr::filter(ntsteps > 0) %>% 
+evalsites <- output %>%
+  mutate(ntsteps = purrr::map_dbl(data, ~nrow(.))) %>%
+  dplyr::filter(ntsteps > 0) %>%
   pull(sitename)
 
 settings_eval <- list(
   benchmark = list( gpp = c("fluxnet") ),
   sitenames = evalsites,
   agg       = 8
-  )
+)
 
-out_eval <- eval_sofun( 
-    output, 
-    settings_eval, 
-    obs_eval = obs_eval, 
-    overwrite = TRUE, 
-    light = FALSE 
-    )
+##  Evaluate model ----
+out_eval <- eval_sofun(
+  output,
+  settings_eval,
+  obs_eval = obs_eval,
+  overwrite = TRUE,
+  light = FALSE
+)
 ```
 
 # Results
@@ -136,9 +228,10 @@ out_eval <- eval_sofun(
 ```{r warning=FALSE, message=FALSE, error=FALSE, echo = FALSE}
 out_eval$gpp$fluxnet$metrics %>% 
   bind_rows(.id = "Level") %>% 
-  kable
+  kable()
 ```
-## Daily and annual scatterplots
+
+## 8-daily, spatial and annual
 
 ```{r message = FALSE, warning = FALSE, echo = FALSE}
 out_eval$gpp$fluxnet$plot$gg_modobs_xdaily
@@ -196,8 +289,6 @@ df_dday_agg <- eval_droughtresponse(
   nbins=10, 
   do_norm=TRUE
   )
-
-usecol = colorRampPalette( c("wheat3", "white") )( 5 )[2]
 
 df_dday_agg %>% 
   ggplot() +
@@ -278,7 +369,8 @@ out_pmodel <- rpmodel(
   as_tibble()
 
 ## overwrite forcing with constant conditions (for one site)
-drivers_rpmodel <- drivers %>% 
+drivers_rpmodel <- df_drivers_fluxnet2015 |> 
+  plyr::mutate(forcing = purrr::map(forcing, ~rename(., rain = rainf, snow = snowf))) %>% 
   slice(1) %>% 
   mutate(forcing = purrr::map(forcing, ~mutate(., 
                                                temp = 20,
@@ -293,7 +385,7 @@ drivers_rpmodel <- drivers %>%
                                                        soilmstress = FALSE,
                                                        tempstress = FALSE)))
 
-params_modl$kphio = 0.049977
+params_modl$kphio = 0.09423773 #pars$par[1]
 params_modl$tau_acclim_tempstress = 1.0
 
 out_rsofun <- rsofun::runread_pmodel_f(
@@ -336,7 +428,8 @@ out_pmodel <- rpmodel(
   as_tibble()
 
 ## overwrite forcing with constant conditions (for one site)
-drivers_rpmodel <- drivers %>% 
+drivers_rpmodel <- df_drivers_fluxnet2015 |> 
+  plyr::mutate(forcing = purrr::map(forcing, ~rename(., rain = rainf, snow = snowf))) %>% 
   slice(1) %>% 
   mutate(forcing = purrr::map(forcing, ~mutate(., 
                                                temp = 20,
@@ -349,9 +442,9 @@ drivers_rpmodel <- drivers %>%
                                                tmax = 20))) %>% 
   mutate(params_siml = purrr::map(params_siml, ~mutate(.,
                                                        soilmstress = FALSE,
-                                                       tempstress = TRUE)))
+                                                       tempstress = FALSE)))
 
-params_modl$kphio = 0.081785
+params_modl$kphio = 0.09423773 #pars$par[1]
 params_modl$tau_acclim_tempstress = 1.0
 
 out_rsofun <- rsofun::runread_pmodel_f(
