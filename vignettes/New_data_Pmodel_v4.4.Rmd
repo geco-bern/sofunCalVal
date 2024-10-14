@@ -27,6 +27,7 @@ source("../R/analyse_modobs2.R")
 source(here("R/align_events.R"))
 source(here("R/eval_droughtresponse.R"))
 source(here("R/heatscatter_dependencies.R"))
+source("../R/create_obs_eval.R")
 
 
 # Set seed
@@ -66,21 +67,6 @@ fdk_filter <-fdk_filter[which(fdk_filter$sitename %in% driver$sitename &
 
 # select only year with good quality le
 
-driver <- left_join(
-  driver, fdk_filter |>
-  select(sitename,year_start_gpp,year_end_gpp),
-  by = "sitename") |>
-  unnest(forcing) |>
-  filter(between(as_date(date),
-                 as_date(paste0(year_start_gpp,"-01-01")),
-                 as_date(paste0(year_end_gpp,"-12-31"))
-                 )
-         ) |>
-  group_by(sitename) |>
-  nest(data = colnames(driver[1,]$forcing[[1]])) |>
-  rename(forcing = data) |>
-  select(-c(year_start_gpp,year_end_gpp))
-
 
 # site selection: good-quality sites from analysis of Stocker et al. (2018) New Phyt.
 df_flue <- readr::read_csv(here("data/flue_stocker18nphyt.csv"))
@@ -99,124 +85,8 @@ df_flue <- left_join(df_flue |>
            rename(site = sitename)
 
 
-load(here("data/obs_eval_fluxnet2015.Rdata"), verbose = TRUE) # use as a blueprint
-obs_eval$ddf <- NULL
-obs_eval$xdf <- NULL
-obs_eval$mdf <- NULL
-obs_eval$adf <- NULL
-obs_eval$breaks <- NULL
 
-
-# daily data
-
-ddf_tibble_preparation <- driver |>
-  unnest(forcing) |>
-  group_by(sitename) |>
-  select(date,gpp) |>
-  nest()
-
-ddf_tibble_preparation <- ddf_tibble_preparation$data
-
-obs_eval$ddf <- tibble(sitename = fdk_site_info$sitename,
-                       lon = fdk_site_info$lon,
-                       lat = fdk_site_info$lat,
-                       elv = fdk_site_info$elv,
-                       classid = fdk_site_info$igbp_land_use,
-                       whc = fdk_site_info$whc,
-                       koeppen_code = fdk_site_info$koeppen_code,
-                       igbp_land_use = fdk_site_info$igbp_land_use,
-                       plant_functioanl_type= NA,
-                       c4 = FALSE,
-                       data = ddf_tibble_preparation)
-
-# weekly data
-
-xdf_tibble_preparation <- driver |>
-  unnest(forcing) |>
-  mutate(week = lubridate::floor_date(date, "week")) |>
-  select(sitename ,week,gpp) |>
-  group_by(sitename, week) |>
-  summarize(gpp = sum(gpp)) |>
-  mutate(inbin = as.factor(week), date = week) |>
-  select(date,inbin,gpp) |>
-  nest()
-
-xdf_tibble_preparation <- xdf_tibble_preparation$data
-
-obs_eval$xdf <- tibble(sitename = fdk_site_info$sitename,
-                       lon = fdk_site_info$lon,
-                       lat = fdk_site_info$lat,
-                       elv = fdk_site_info$elv,
-                       classid = fdk_site_info$igbp_land_use,
-                       whc = fdk_site_info$whc,
-                       koeppen_code = fdk_site_info$koeppen_code,
-                       igbp_land_use = fdk_site_info$igbp_land_use,
-                       plant_functioanl_type= NA,
-                       c4 = FALSE,
-                       data = xdf_tibble_preparation)
-
-# monthly data
-
-mdf_tibble_preparation <- driver |>
-  unnest(forcing) |>
-  mutate(month = lubridate::floor_date(date, "month")) |>
-  select(sitename ,month,gpp) |>
-  group_by(sitename, month) |>
-  summarize(gpp = sum(gpp)) |>
-  mutate(date = month) |>
-  select(date,gpp) |>
-  nest()
-
-mdf_tibble_preparation <- mdf_tibble_preparation$data
-
-obs_eval$mdf <- tibble(sitename = fdk_site_info$sitename,
-                       lon = fdk_site_info$lon,
-                       lat = fdk_site_info$lat,
-                       elv = fdk_site_info$elv,
-                       classid = fdk_site_info$igbp_land_use,
-                       whc = fdk_site_info$whc,
-                       koeppen_code = fdk_site_info$koeppen_code,
-                       igbp_land_use = fdk_site_info$igbp_land_use,
-                       plant_functioanl_type= NA,
-                       c4 = FALSE,
-                       data = mdf_tibble_preparation)
-
-# annual data
-
-adf_tibble_preparation <- driver |>
-  unnest(forcing) |>
-  mutate(year = lubridate::floor_date(date, "year")) |>
-  select(sitename ,year,gpp) |>
-  group_by(sitename, year) |>
-  summarize(gpp = sum(gpp)) |>
-  mutate(date = year) |>
-  select(date,gpp) |>
-  nest()
-
-adf_tibble_preparation <- adf_tibble_preparation$data
-
-obs_eval$adf <- tibble(sitename = fdk_site_info$sitename,
-                       lon = fdk_site_info$lon,
-                       lat = fdk_site_info$lat,
-                       elv = fdk_site_info$elv,
-                       classid = fdk_site_info$igbp_land_use,
-                       whc = fdk_site_info$whc,
-                       koeppen_code = fdk_site_info$koeppen_code,
-                       igbp_land_use = fdk_site_info$igbp_land_use,
-                       plant_functioanl_type= NA,
-                       c4 = FALSE,
-                       data = adf_tibble_preparation)
-
-
-breaks_preparation <- driver |>
-  unnest(forcing) |>
-  select(date) |>
-  arrange(date) |>
-  distinct(date) |>
-  mutate(breaks = lubridate::floor_date(date, "week"))
-
-
-obs_eval$breaks <- unique((breaks_preparation$breaks))[-1]
+obs_eval$breaks <- create_obs_eval(driver,fdk_site_info)
 
 
 # # THIS IS NOT RUN, RUN BEFOREHAND AND SPECIFY PARAMETERS BY HAND BELOW
@@ -236,7 +106,7 @@ obs_eval$breaks <- unique((breaks_preparation$breaks))[-1]
 Model parameters are determined for this version from calibration. The code for model calibration is not shown. See `vignettes/1_p-model_reference_run.Rmd` for the code.
 
 ```{r}
-par_calib <-  read_rds(here("data","calibration_new_data_75.rds"))
+par_calib <-  read_rds(here("data","calibration_new_data_50.rds"))
 
 params_modl <- list(
     kphio              = par_calib$par[["kphio"]],    
@@ -282,11 +152,7 @@ output <- output |>
 This runs the `eval_sofun()` routine included in the sofunCalVal package, and outputs daily, monthly and annual summary statistics comparing observed with simulated values. We'll retake this same routine when running on the latest release (i.e. the workflow is equivalent but for the release of the `rsofun` package)
 
 ```{r warning=FALSE, message=FALSE, error=FALSE, include = FALSE}
-train_site_newdata_75 <- readRDS(here("data/train_site_newdata_75.rds"))
-
-evalsites <- output$sitename[!(output$sitename %in% train_site_newdata_75 )]
-
-# write_rds(evalsites, file = here("data/evalsites.rds"))
+evalsites <- output$sitename[!(output$sitename %in% par_calib$sitename )]
 
 settings_eval <- list(
   benchmark = list( gpp = c("fluxnet") ),
