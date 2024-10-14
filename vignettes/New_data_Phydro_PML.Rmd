@@ -94,7 +94,7 @@ obs_eval <- create_obs_eval(driver,fdk_site_info)
 # Model run
 
 ```{r warning = FALSE, message = FALSE}
-par_calib <-  read_rds(here("data","calibration_new_data_phydro_25.rds"))
+par_calib <-  read_rds(here("data","calibration_new_data_phydro_50.rds"))
 
 params_modl <- list(
     kphio              = par_calib$par[["kphio"]],   
@@ -148,11 +148,7 @@ output <- output |>
 This runs the `eval_sofun()` routine included in the sofunCalVal package, and outputs daily, monthly and annual summary statistics comparing observed with simulated values. We'll retake this same routine when running on the latest release (i.e. the workflow is equivalent but for the release of the `rsofun` package)
 
 ```{r warning=FALSE, message=FALSE, error=FALSE, include = FALSE}
-train_site_phydro_25 <- readRDS(here("data/train_site_phydro_25.rds"))
-
-evalsites <- output$sitename[!(output$sitename %in% train_site_phydro_25 )]
-
-# write_rds(evalsites, file = here("data/evalsites.rds"))
+evalsites <- output$sitename[!(output$sitename %in% par_calib$sitename )]
 
 settings_eval <- list(
   benchmark = list( gpp = c("fluxnet") ),
