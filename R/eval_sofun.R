@@ -68,6 +68,22 @@ eval_sofun_byvar <- function(varnam,
                              overwrite = TRUE,
                              doplot = FALSE,
                              light = light) {
+
+  #!!! select axys label (add others if needed)
+
+  if(varnam == "le"){
+    lab = "LE  ( J"
+  }
+  if(varnam == "gpp"){
+    lab = "GPP (gC"
+  }
+  if(varnam == "ppfd"){
+    lab = "PPFD ( mol"
+  }
+  if(varnam == "aet"){
+    lab = "AET ( mm"
+  }
+
   rlang::inform("-----------------------------------")
   rlang::inform(varnam)
   rlang::inform("-----------------------------------")
@@ -129,11 +145,7 @@ eval_sofun_byvar <- function(varnam,
     }
 
     ## detach
-    if (varnam == "aet") {
-      varnam_obs <- "latenth"
-    } else {
-      varnam_obs <- varnam
-    }
+    varnam_obs <- varnam
 
     adf <- obs_eval$adf %>%
       tidyr::unnest(data) %>%
@@ -153,6 +165,7 @@ eval_sofun_byvar <- function(varnam,
     # NOTE: only for dplyr::selected sites,
     # and merge into respective observational data frame
 
+
     rlang::inform("Aggregating model outputs...")
 
     ## annual sum
@@ -171,11 +184,11 @@ eval_sofun_byvar <- function(varnam,
     mdf <- ddf_mod %>%
       mutate(year = year(date), moy = month(date)) %>%
       group_by(sitename, year, moy) %>%
-      summarise(mod = mean(mod), n = n()) %>%
+      summarise(mod = sum(mod), n = n()) %>%
       ## merge into observational data frame
       right_join(mutate(mdf,
-        year = year(date),
-        moy = month(date)
+                        year = year(date),
+                        moy = month(date)
       ),
       by = c("sitename", "year", "moy")
       )
@@ -186,13 +199,13 @@ eval_sofun_byvar <- function(varnam,
       mutate(
         year = year(date),
         inbin = cut(date,
-          breaks = obs_eval$breaks, right = FALSE
+                    breaks = obs_eval$breaks, right = FALSE
         )
       ) %>%
       tidyr::drop_na() %>%
       group_by(sitename, inbin) %>%
       summarise(
-        mod_mean = mean(mod, na.rm = TRUE),
+        mod_mean = sum(mod, na.rm = TRUE),
         mod_min = min(mod, na.rm = TRUE),
         mod_max = max(mod, na.rm = TRUE),
         n_mod = sum(!is.na(mod))
@@ -370,7 +383,7 @@ eval_sofun_byvar <- function(varnam,
           mutate(doy = yday(date)) %>%
           # NOTE: lazy-loaded with library(rsofun)
           # left_join(dplyr::select(
-          # metainfo_Tier1_sites_kgclimate_fluxnet2015,
+          # metainfo_Tier1_sites_kJlimate_fluxnet2015,
           # sitename,
           # lat,
           # koeppen_code ), by = "sitename" ) %>%
@@ -443,8 +456,8 @@ eval_sofun_byvar <- function(varnam,
         mutate(doy = yday(date)) %>%
         left_join(
           dplyr::rename(meandoydf,
-            mod_mean = mod_mean,
-            obs_mean = obs_mean
+                        mod_mean = mod_mean,
+                        obs_mean = obs_mean
           ),
           by = c("sitename", "doy")
         ) %>%
@@ -570,7 +583,7 @@ eval_sofun_byvar <- function(varnam,
 
       # Mod. vs. obs. of mean per site -> spatial correlation ----
 
-      plot_modobs_spatial <- function(makepdf = FALSE) { # using meandf
+      plot_modobs_spatial <- function(lab,makepdf = FALSE) { # using meandf
 
         if (!dir.exists(settings$dir_figs)) {
           system(paste0("mkdir -p ", settings$dir_figs))
@@ -608,7 +621,7 @@ eval_sofun_byvar <- function(varnam,
 
       # Combined spatial - IAV correlation ----
 
-      plot_modobs_spatial_annual <- function() {
+      plot_modobs_spatial_annual <- function(lab) {
         get_start_end <- function(df) {
           df_start <- df %>%
             arrange(mod) %>%
@@ -665,11 +678,11 @@ eval_sofun_byvar <- function(varnam,
           labs(
             subtitle =
               bquote(bold("Annual:") ~ italic(R)^2 == .(rsq_lab_annual) ~ ~
-              RMSE == .(rmse_lab_annual) ~ "\n" ~
-              bold("Spatial:") ~ italic(R)^2 == .(rsq_lab_spatial) ~ ~
-              RMSE == .(rmse_lab_spatial)),
-            y = expression(paste("Observed GPP (gC m"^-2, "yr"^-1, ")")),
-            x = expression(paste("Simulated GPP (gC m"^-2, "yr"^-1, ")"))
+                       RMSE == .(rmse_lab_annual) ~ "\n" ~
+                       bold("Spatial:") ~ italic(R)^2 == .(rsq_lab_spatial) ~ ~
+                       RMSE == .(rmse_lab_spatial)),
+            y = substitute(paste("Observed ",lab, " m"^-2, "yr"^-1, ")"),list(lab=lab)),
+            x = substitute(paste("Simulated",lab, " m"^-2, "yr"^-1, ")"),list(lab=lab))
           )
 
         return(gg)
@@ -691,8 +704,8 @@ eval_sofun_byvar <- function(varnam,
             mod,
             obs,
             heat = FALSE,
-            ylab = expression(paste("observed GPP (gC m"^-2, "yr"^-1, ")")),
-            xlab = expression(paste("simulated GPP (gC m"^-2, "yr"^-1, ")")),
+            ylab = substitute(paste("observed ",lab, " m"^-2, "yr"^-1, ")"),list(lab=lab)),
+            xlab = substitute(paste("simulated ",lab, " m"^-2, "yr"^-1, ")"),list(lab=lab)),
             plot.title = "IAV correlation"
           )
         )
@@ -731,8 +744,8 @@ eval_sofun_byvar <- function(varnam,
           mod,
           obs,
           col = rgb(0, 0, 0, 0.05),
-          ylab = expression(paste("observed GPP (gC m"^-2, "d"^-1, ")")),
-          xlab = expression(paste("simulated GPP (gC m"^-2, "d"^-1, ")"))
+          ylab = substitute(paste("observed ",lab, " m"^-2, "d"^-1, ")"),list(lab=lab)),
+          xlab = substitute(paste("simulated ",lab, " m"^-2, "d"^-1, ")"),list(lab=lab))
         ))
         out <- idvdf_stats %>%
           mutate(purrr::map(
@@ -766,7 +779,7 @@ eval_sofun_byvar <- function(varnam,
       ## ------------------------------------------------------------
       ## Mod. vs. obs. of m of IXV correlation: x_(x,i) - mean_x( x_(x,i) )
       ## ------------------------------------------------------------
-      plot_modobs_anomalies_xdaily <- function(makepdf = FALSE) { # using ixvdf, ixvdf_stats
+      plot_modobs_anomalies_xdaily <- function(lab, makepdf = FALSE) { # using ixvdf, ixvdf_stats
         # source("analyse_modobs.R")
         if (makepdf && !dir.exists(settings$dir_figs)) system(paste0("mkdir -p ", settings$dir_figs))
         if (makepdf) pdf(paste0(settings$dir_figs, "/modobs_anomalies_xdaily.pdf"))
@@ -774,8 +787,8 @@ eval_sofun_byvar <- function(varnam,
           mod,
           obs,
           col = rgb(0, 0, 0, 0.05),
-          ylab = expression(paste("observed GPP (gC m"^-2, "d"^-1, ")")),
-          xlab = expression(paste("simulated GPP (gC m"^-2, "d"^-1, ")"))
+          ylab = substitute(paste("observed ",lab," m"^-2, "d"^-1, ")"),list(lab=lab),list(lab=lab)),
+          xlab = substitute(paste("simulated ",lab," m"^-2, "d"^-1, ")"),list(lab=lab),list(lab=lab))
         ))
         out <- ixvdf_stats %>% mutate(purrr::map(data, ~ lines(fitted ~ mod, data = ., col = rgb(0, 0, 1, 0.1)))) # to have it sorted: %>% mutate( data = purrr::map( data, ~arrange( ., mod ) ) )
         title("IXV correlation")
@@ -806,7 +819,7 @@ eval_sofun_byvar <- function(varnam,
       ## Mod. vs. obs. of mean seasonal cycle by day of year (DOY)
       ## ------------------------------------------------------------
       ## observed vs. modelled
-      plot_modobs_meandoy <- function(pattern = "", makepdf = FALSE) { # using meandoydf
+      plot_modobs_meandoy <- function(lab,pattern = "", makepdf = FALSE) { # using meandoydf
         # source("analyse_modobs.R")
         if (makepdf && !dir.exists(settings$dir_figs)) system(paste0("mkdir -p ", settings$dir_figs))
         if (makepdf) pdf(paste0(settings$dir_figs, "/modobs_meandoy_", pattern, ".pdf"))
@@ -816,8 +829,8 @@ eval_sofun_byvar <- function(varnam,
             mod_mean,
             obs_mean,
             heat = TRUE,
-            ylab = expression(paste("observed GPP (gC m"^-2, "d"^-1, ")")),
-            xlab = expression(paste("simulated GPP (gC m"^-2, "d"^-1, ")")),
+            ylab = substitute(paste("observed ",lab," m"^-2, "d"^-1, ")"),list(lab=lab)),
+            xlab = substitute(paste("simulated ",lab," m"^-2, "d"^-1, ")"),list(lab=lab)),
             plot.title = "Mean-by-DOY correlation"
           )
         )
@@ -855,7 +868,7 @@ eval_sofun_byvar <- function(varnam,
       ## Mean seasonal cycle by x-day-period of year (XOY)
       ## ------------------------------------------------------------
       ## observed vs. modelled
-      plot_modobs_meanxoy <- function(makepdf = FALSE) { # meanxoydf
+      plot_modobs_meanxoy <- function(lab,makepdf = FALSE) { # meanxoydf
         # source("analyse_modobs.R")
         if (makepdf && !dir.exists(settings$dir_figs)) system(paste0("mkdir -p ", settings$dir_figs))
         if (makepdf) pdf(paste0(settings$dir_figs, "/modobs_meanxoy.pdf"))
@@ -865,8 +878,8 @@ eval_sofun_byvar <- function(varnam,
             mod_mean,
             obs_mean,
             heat = TRUE,
-            ylab = expression(paste("observed GPP (gC m"^-2, "d"^-1, ")")),
-            xlab = expression(paste("simulated GPP (gC m"^-2, "d"^-1, ")")),
+            ylab = substitute(paste("observed ",lab," m"^-2, "d"^-1, ")"),list(lab=lab)),
+            xlab = substitute(paste("simulated ",lab," m"^-2, "d"^-1, ")"),list(lab=lab)),
             plot.title = "Mean-by-XOY correlation"
           )
         )
@@ -888,15 +901,15 @@ eval_sofun_byvar <- function(varnam,
       ## Mod. vs. obs for daily values (absolute)
       ## ------------------------------------------------------------
       ## observed vs. modelled
-      plot_modobs_daily <- function() {
+      plot_modobs_daily <- function(lab) {
         modobs_ddf <- ddf %>%
           analyse_modobs2(mod = "mod", obs = "obs", type = "density")
 
         gg <- modobs_ddf$gg +
           labs(
-            x = expression(paste("observed GPP (gC m"^-2, "d"^-1, ")")),
-            y = expression(paste("simulated GPP (gC m"^-2, "d"^-1, ")")),
-            title = "Daily GPP"
+            y = substitute(paste("observed ",lab," m"^-2, "d"^-1, ")"),list(lab=lab)),
+            x = substitute(paste("simulated ",lab," m"^-2, "d"^-1, ")"),list(lab=lab)),
+            title = paste("Daily ",substr(lab,1,4))
           )
 
         return(gg)
@@ -906,15 +919,15 @@ eval_sofun_byvar <- function(varnam,
       ## Mod. vs. obs for monthly values (absolute)
       ## ------------------------------------------------------------
       ## observed vs. modelled
-      plot_modobs_monthly <- function() {
+      plot_modobs_monthly <- function(lab) {
         modobs_mdf <- mdf %>%
           analyse_modobs2(mod = "mod", obs = "obs", type = "heat")
 
         gg <- modobs_mdf$gg +
           labs(
-            x = expression(paste("observed GPP (gC m"^-2, "d"^-1, ")")),
-            y = expression(paste("simulated GPP (gC m"^-2, "d"^-1, ")")),
-            title = "Monthly GPP"
+            x = substitute(paste("observed ",lab," m"^-2, "d"^-1, ")"),list(lab=lab)),
+            y = substitute(paste("simulated ",lab," m"^-2, "d"^-1, ")"),list(lab=lab)),
+            title = paste("Monthly ",substr(lab,1,4))
           )
 
         return(gg)
@@ -924,15 +937,15 @@ eval_sofun_byvar <- function(varnam,
       ## Mod. vs. obs for nnual values (absolute)
       ## ------------------------------------------------------------
       ## observed vs. modelled
-      plot_modobs_annual <- function() {
+      plot_modobs_annual <- function(lab) {
         modobs_adf <- adf %>%
           analyse_modobs2(mod = "mod", obs = "obs", type = "points")
 
         gg <- modobs_adf$gg +
           labs(
-            x = expression(paste("observed GPP (gC m"^-2, "d"^-1, ")")),
-            y = expression(paste("simulated GPP (gC m"^-2, "d"^-1, ")")),
-            title = "Annual GPP"
+            x = substitute(paste("observed ",lab," m"^-2, "d"^-1, ")"),list(lab=lab)),
+            y = substitute(paste("simulated ",lab," m"^-2, "d"^-1, ")"),list(lab=lab)),
+            title = paste("Annual ",substr(lab,1,4))
           )
 
         return(gg)
@@ -943,15 +956,15 @@ eval_sofun_byvar <- function(varnam,
       ## Mod. vs. obs. for ggregated values (absolute) aggregated to X-day periods
       ## ------------------------------------------------------------
       ## observed vs. modelled
-      plot_modobs_xdaily <- function() {
+      plot_modobs_xdaily <- function(lab) {
         modobs_ddf <- xdf %>%
           analyse_modobs2(mod = "mod", obs = "obs", type = "heat")
 
         gg <- modobs_ddf$gg +
           labs(
-            x = expression(paste("observed GPP (gC m"^-2, "d"^-1, ")")),
-            y = expression(paste("simulated GPP (gC m"^-2, "d"^-1, ")")),
-            title = "X-daily GPP"
+            y = substitute(paste("observed ",lab," m"^-2, "d"^-1, ")"),list(lab=lab)),
+            x = substitute(paste("simulated ",lab," m"^-2, "d"^-1, ")"),list(lab=lab)),
+            title = paste("X-daily ",substr(lab,1,4))
           )
         return(gg)
       }
@@ -965,7 +978,7 @@ eval_sofun_byvar <- function(varnam,
         if (makepdf) pdf(paste0(settings$dir_figs, "/meandoy_bysite/meandoy_bysite_", df$site[1], ".pdf"))
         par(las = 1)
         yrange <- range(df$mod_min, df$mod_max, df$obs_min, df$obs_max, na.rm = TRUE)
-        plot(df$doy, df$obs_mean, type = "l", ylim = yrange, ylab = expression(paste("simulated GPP (gC m"^-2, "d"^-1, ")")), xlab = "DOY")
+        plot(df$doy, df$obs_mean, type = "l", ylim = yrange, ylab = substitute(paste("simulated ",lab, " m"^-2, "d"^-1, ")"),list(lab=lab)), xlab = "DOY")
         polygon(c(df$doy, rev(df$doy)), c(df$obs_min, rev(df$obs_max)), border = NA, col = rgb(0, 0, 0, 0.3))
         lines(df$doy, df$mod_mean, col = "red", lwd = 1.75)
         polygon(c(df$doy, rev(df$doy)), c(df$mod_min, rev(df$mod_max)), border = NA, col = rgb(1, 0, 0, 0.3))
@@ -985,7 +998,7 @@ eval_sofun_byvar <- function(varnam,
           if (makepdf) pdf(filn)
           par(las = 1)
           yrange <- range(df$mod_min, df$mod_max, df$obs_min, df$obs_max, na.rm = TRUE)
-          plot(df$doy, df$obs_mean, type = "l", ylim = yrange, ylab = expression(paste("simulated GPP (gC m"^-2, "d"^-1, ")")), xlab = "DOY")
+          plot(df$doy, df$obs_mean, type = "l", ylim = yrange, ylab = substitute(paste("simulated ",lab, " m"^-2, "d"^-1, ")"),list(lab=lab)), xlab = "DOY")
           polygon(c(df$doy, rev(df$doy)), c(df$obs_min, rev(df$obs_max)), border = NA, col = rgb(0, 0, 0, 0.3))
           lines(df$doy, df$mod_mean, col = "red", lwd = 1.75)
           if (!is.na(dashed)) lines(dashed$doy, dashed$mod_mean, col = "red", lwd = 0.75, lty = 1)
@@ -1006,7 +1019,7 @@ eval_sofun_byvar <- function(varnam,
         if (makepdf) pdf(paste0(settings$dir_figs, "/meanxoy_bysite/meanxoy_bysite_", df$site[1], ".pdf"))
         par(las = 1)
         yrange <- range(df$mod_min, df$mod_max, df$obs_min, df$obs_max, na.rm = TRUE)
-        plot(df$xoy, df$obs_mean, type = "l", ylim = yrange, ylab = expression(paste("simulated GPP (gC m"^-2, "d"^-1, ")")), xlab = "DOY")
+        plot(df$xoy, df$obs_mean, type = "l", ylim = yrange, ylab = substitute(paste("simulated ",lab, " m"^-2, "d"^-1, ")"),list(lab=lab)), xlab = "DOY")
         polygon(c(df$xoy, rev(df$xoy)), c(df$obs_min, rev(df$obs_max)), border = NA, col = rgb(0, 0, 0, 0.3))
         lines(df$xoy, df$mod_mean, col = "red", lwd = 1.75)
         polygon(c(df$xoy, rev(df$xoy)), c(df$mod_min, rev(df$mod_max)), border = NA, col = rgb(1, 0, 0, 0.3))
@@ -1051,12 +1064,12 @@ eval_sofun_byvar <- function(varnam,
 
     if (!light) {
       out$fluxnet$plot <- list(
-        gg_modobs_daily = plot_modobs_daily(),
-        gg_modobs_xdaily = plot_modobs_xdaily(),
-        gg_modobs_monthly = plot_modobs_monthly(),
-        gg_modobs_annual = plot_modobs_annual(),
+        gg_modobs_daily = plot_modobs_daily(lab),
+        gg_modobs_xdaily = plot_modobs_xdaily(lab),
+        gg_modobs_monthly = plot_modobs_monthly(lab),
+        gg_modobs_annual = plot_modobs_annual(lab),
         modobs_spatial = plot_modobs_spatial,
-        gg_modobs_spatial_annual = plot_modobs_spatial_annual(),
+        gg_modobs_spatial_annual = plot_modobs_spatial_annual(lab),
         modobs_anomalies_annual = plot_modobs_anomalies_annual,
         modobs_anomalies_daily = plot_modobs_anomalies_daily,
         modobs_anomalies_xdaily = plot_modobs_anomalies_xdaily,

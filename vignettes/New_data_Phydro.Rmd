@@ -1,0 +1,476 @@
+
+```{r setup, include = FALSE}
+
+# !!! select your path to whc_2m.nc in line 116
+
+# !!! after rebuilding rsofun, restar R (in session)
+
+
+# Install packages
+ # if ("rsofun" %in% installed.packages()) remove.packages("rsofun")
+ # devtools::install_github(
+ #   "geco-bern/rsofun@phydro",
+ #   upgrade = "never",
+ #   force = TRUE
+ #   )
+
+# Load packages
+library(rsofun)
+packageVersion("rsofun")
+library(dplyr)
+library(tidyr)
+library(readr)
+library(ggplot2)
+library(lubridate)
+library(knitr)
+library(ggthemes)
+library(here)
+library(ncdf4)
+
+# Load functions
+source("../R/eval_sofun.R")
+source("../R/get_stats.R")
+source("../R/analyse_modobs2.R")
+source(here("R/align_events.R"))
+source(here("R/eval_droughtresponse.R"))
+source(here("R/heatscatter_dependencies.R"))
+source(here("R/create_obs_eval.R"))
+
+
+# Set seed
+set.seed(42)
+
+# model forcing data
+driver <- read_rds("/data_2/FluxDataKit/v3.4/zenodo_upload/rsofun_driver_data_v3.4.rds") # currently only on workstation
+
+# site meta info
+fdk_site_info <- read_csv("/data_2/FluxDataKit/v3.4/zenodo_upload/fdk_site_info.csv")
+
+# data quality filter info
+fdk_filter <-  read_csv("/data_2/FluxDataKit/v3.4/zenodo_upload/fdk_site_fullyearsequence.csv")
+
+# exclude croplands and wetlands from calibration/evaluation
+fdk_site_info <- fdk_site_info[fdk_site_info$igbp_land_use != "CRO" &
+                               fdk_site_info$igbp_land_use != "WET" 
+                               ,]
+
+# apply good year sequence data quality filter for GPP
+fdk_filter <- fdk_filter[fdk_filter$drop_gpp == "FALSE",]
+
+driver <- driver[which(driver$sitename %in% fdk_site_info$sitename &
+                       driver$sitename %in% fdk_filter$sitename),]
+
+fdk_site_info <- fdk_site_info[which(fdk_site_info$sitename %in% driver$sitename),]
+
+fdk_filter <- fdk_filter[which(fdk_filter$sitename %in% driver$sitename &
+                               fdk_filter$sitename %in% fdk_site_info$sitename),]
+
+driver_forcing <- driver |> 
+  select(sitename, forcing) |> 
+  unnest(cols = c(forcing))
+
+driver <- driver_forcing |>
+  left_join(
+    fdk_filter |> 
+      select(
+        sitename, 
+        year_start = year_start_gpp, 
+        year_end = year_end_gpp),
+    by = join_by(sitename)
+  ) |> 
+  mutate(year = year(date)) |> 
+  filter(year >= year_start & year <= year_end) |> 
+  select(-year_start, -year_end, -year) |> 
+  group_by(sitename) |> 
+  nest() |> 
+  left_join(
+    driver |> 
+      select(
+        sitename, 
+        site_info,
+        params_siml
+      ),
+    by = join_by(sitename)
+  ) |> 
+  rename(forcing = data) |> 
+  select(sitename, params_siml, site_info, forcing) |> 
+  ungroup()
+
+# site selection: good-quality sites from analysis of Stocker et al. (2018) New Phyt.
+df_flue <- readr::read_csv(here("data/flue_stocker18nphyt.csv"))
+
+df_flue <- df_flue[df_flue$site %in% fdk_filter$sitename,]
+
+df_flue <- left_join(df_flue |>
+                       rename(sitename = site), fdk_filter |>
+                       select(sitename,year_start_gpp,year_end_gpp),
+                       by = "sitename") |>
+           filter(between(as_date(date),
+                 as_date(paste0(year_start_gpp,"-01-01")),
+                 as_date(paste0(year_end_gpp,"-12-31"))
+                 )) |>
+           select(-c(year_start_gpp,year_end_gpp)) |>
+           rename(site = sitename)
+
+# change the whc to previous values !!! select your path to whc_2m.nc
+nc_file <- nc_open("~/data_scratch/sofuncalvalGPP/sofuncalvalGPP/data/whc_2m.nc")
+
+whc = ncvar_get(nc_file, "whc_2m")
+lons = ncvar_get(nc_file, "lon")
+lats = ncvar_get(nc_file, "lat")
+
+geo <- driver |>
+  unnest(site_info) |>
+  select(lon  , lat)
+
+geo$sitename <- driver$sitename
+
+n <- 1 # parameter to select size of slice to average
+
+old_whc <- lapply(geo$sitename, function(x){
+  tmp <- geo[geo$sitename == x,]
+  lonid <- which(lons > tmp$lon)[1]
+  latid <- which(lats > tmp$lat)[1]
+  whc_grid <- whc[(lonid-n):(lonid+n), (latid-n):(latid+n)]
+  whc_site <- mean(as.numeric(whc_grid, na.rm=T))
+  return(whc_site)
+})
+
+old_whc = unlist(old_whc)
+
+for(i in 1:dim(driver)[1]){
+  driver$site_info[i][[1]][4] <- old_whc[i]
+}
+
+# read fixed site split from file here, file created by a separate script 
+
+# calibrate model using code in analysis/calibration_gensa_new_data_master_50.R
+# this writes calibrated parameters to file data/calibration_new_data_50.rds
+# that file also contains the list of sites used for model training as list element $sitename
+
+par_calib <-  read_rds(here("data","calibration_new_data_phydro_50.rds"))
+
+# construct list of observations used for evaluation
+obs_eval <- create_obs_eval(
+  driver |> 
+    filter(!(sitename %in% par_calib$sitename)),
+  fdk_site_info |> 
+    filter(!(sitename %in% par_calib$sitename))
+  )
+```
+
+# Model parameters
+
+Model parameters are determined for this version from calibration. The code for model calibration is not shown. 
+
+# Model run
+
+```{r warning = FALSE, message = FALSE}
+
+params_modl <- list(
+    kphio              = par_calib$par[["kphio"]],   
+    kphio_par_a        = par_calib$par[["kphio_par_a"]],       
+    kphio_par_b        = par_calib$par[["kphio_par_b"]],
+    rd_to_vcmax        = 0.014,  
+    soilm_thetastar    = par_calib$par[["soilm_thetastar"]], 
+    beta_unitcostratio = 146,
+    tau_acclim         = 30,
+    kc_jmax            = 0.54131889
+  )
+
+driver <- driver |> unnest(params_siml) |>
+  mutate(use_gs = FALSE,
+         use_phydro = FALSE,
+         use_pml= FALSE) |>
+  group_by(sitename) |>
+  nest(params_siml = c(spinup, spinupyears, recycle, outdt, ltre,  ltne,  ltrd,  ltnd,  lgr3,  lgn3,  lgr4 ,
+                       use_gs, use_phydro, use_pml)) |>
+  ungroup()
+  
+ output <- rsofun::runread_pmodel_f(
+  driver,
+  par = params_modl
+ )
+
+# remove sites where it didn't work
+output <- output |>
+  mutate(len = purrr::map_int(data, ~nrow(.))) |>
+  filter(len != 1) |>
+  select(-len)
+```
+
+# Run evaluation
+
+This runs the `eval_sofun()` routine included in the sofunCalVal package, and outputs daily, monthly and annual summary statistics comparing observed with simulated values. We'll retake this same routine when running on the latest release (i.e. the workflow is equivalent but for the release of the `rsofun` package)
+
+```{r warning=FALSE, message=FALSE, error=FALSE, include = FALSE}
+evalsites <- output$sitename[!(output$sitename %in% par_calib$sitename )]
+
+settings_eval <- list(
+  benchmark = list( gpp = c("fluxnet"), le=c("fluxnet") ),
+  sitenames = evalsites,
+  agg       = 8
+  )
+
+out_eval <- eval_sofun( 
+  output, 
+  settings_eval, 
+  obs_eval = obs_eval, 
+  overwrite = TRUE, 
+  light = FALSE 
+  )
+```
+
+# Results GPP
+
+```{r warning=FALSE, message=FALSE, error=FALSE, echo = FALSE}
+out_eval$gpp$fluxnet$metrics %>% 
+  bind_rows(.id = "Level") %>% 
+  kable()
+```
+
+## 8-daily, spatial and annual
+
+```{r message = FALSE, warning = FALSE, echo = FALSE}
+out_eval$gpp$fluxnet$plot$gg_modobs_xdaily
+out_eval$gpp$fluxnet$plot$gg_modobs_spatial_annual
+```
+
+## Mean seasonal cycle
+
+```{r message = FALSE, warning = FALSE, echo = FALSE}
+out_eval$gpp$fluxnet$data$meandoydf_byclim %>% 
+  dplyr::filter(climatezone %in% c(
+    "Aw south", "BSk north", "Cfa north",
+    "Cfb north", "Cfb south", "Csa north",
+    "Csb north", "Dfb north", "Dfc north")
+    ) %>%
+  dplyr::filter(koeppen_code != "-") %>% 
+  pivot_longer(
+    c(obs_mean, mod_mean),
+    names_to = "source",
+    values_to = "gpp"
+    ) %>% 
+  ggplot() +
+  geom_ribbon(
+    aes(x = doy, ymin = obs_min, ymax = obs_max), 
+    fill = "black", 
+    alpha = 0.2
+    ) +
+  geom_line(aes(x = doy, y = gpp, color = source), size = 0.4) +
+  labs(y = expression( paste("Simulated GPP (g C m"^-2, " d"^-1, ")" ) ), 
+       x = "DOY") +
+  facet_wrap( ~climatezone ) +
+  theme_gray() +
+  theme(legend.position = "bottom") +
+  scale_color_manual(
+    name = "Setup: ",
+    values = c("red", "black")
+    )
+```
+
+## Drought response
+
+```{r message = FALSE, warning = FALSE, echo = FALSE}
+source("R/align_events.R")
+source("R/eval_droughtresponse.R")
+
+df_dday_agg <- eval_droughtresponse( 
+  df = out_eval$gpp$fluxnet$data$ddf %>%
+    rename(
+      site = sitename
+      ), 
+  df_flue = readr::read_csv(here::here("data/flue_stocker18nphyt.csv")),
+  before = 20,
+  after = 105,
+  leng_threshold = 10, 
+  nbins = 10, 
+  do_norm = TRUE
+  )
+
+df_dday_agg %>% 
+  ggplot() +
+  geom_hline(
+    yintercept = 0,
+    color = "black",
+    linetype = "dotted"
+    ) +
+  geom_vline(
+    xintercept = 0,
+    color = "black",
+    linetype = "dotted"
+    ) +
+  geom_line(
+    aes(
+      x = dday,
+      y = median
+      ),
+    size = 0.9) +
+  geom_ribbon(
+    aes(
+      x = dday,
+      ymin = q33,
+      ymax = q66
+      ), 
+    alpha = 0.3) +
+  scale_color_manual(
+    values = c(
+      "BRC" = "black",
+      "FULL" = "royalblue"
+      ),
+    name = "Setup"
+    ) +
+  scale_fill_manual(
+    values = c(
+      "BRC" = "black",
+      "FULL" = "royalblue"
+      ),
+    name = "Setup") +
+  ylim(-1.2, 2.2) + 
+  xlim(-20, 105) +
+  scale_x_continuous(
+    expand = c(0,0)
+    ) +
+  scale_y_continuous(
+    expand = c(0,0)
+    ) +
+  labs(
+    x = "Days after drought onset",
+    y = expression( paste( "Bias (g C m"^{-1}, " d"^{-1}, ")")) 
+    ) +
+  theme_classic() +
+  theme(
+    panel.grid.major.y = element_line(),
+    panel.grid.major.x = element_line()
+  )
+```
+
+# Results LE
+
+```{r warning=FALSE, message=FALSE, error=FALSE, echo = FALSE}
+out_eval$le$fluxnet$metrics %>% 
+  bind_rows(.id = "Level") %>% 
+  kable()
+```
+
+## 8-daily, spatial and annual
+
+<!-- xxx plot means across weeks, months, years, ... -->
+
+```{r message = FALSE, warning = FALSE, echo = FALSE}
+out_eval$le$fluxnet$plot$gg_modobs_xdaily
+out_eval$le$fluxnet$plot$gg_modobs_spatial_annual
+```
+
+## Mean seasonal cycle
+
+```{r message = FALSE, warning = FALSE, echo = FALSE}
+out_eval$le$fluxnet$data$meandoydf_byclim %>% 
+  dplyr::filter(climatezone %in% c(
+    "Aw south", "BSk north", "Cfa north",
+    "Cfb north", "Cfb south", "Csa north",
+    "Csb north", "Dfb north", "Dfc north")
+    ) %>%
+  dplyr::filter(koeppen_code != "-") %>% 
+  pivot_longer(
+    c(obs_mean, mod_mean),
+    names_to = "source",
+    values_to = "gpp"
+    ) %>% 
+  ggplot() +
+  geom_ribbon(
+    aes(x = doy, ymin = obs_min, ymax = obs_max), 
+    fill = "black", 
+    alpha = 0.2
+    ) +
+  geom_line(aes(x = doy, y = gpp, color = source), size = 0.4) +
+  labs(y = expression( paste("Simulated LE (J m"^-2, " d"^-1, ")" ) ), 
+       x = "DOY") +
+  facet_wrap( ~climatezone ) +
+  theme_gray() +
+  theme(legend.position = "bottom") +
+  scale_color_manual(
+    name = "Setup: ",
+    values = c("red", "black")
+    )
+```
+
+## Drought response
+
+```{r message = FALSE, warning = FALSE, echo = FALSE}
+df_dday_agg <- eval_droughtresponse( 
+  df = out_eval$le$fluxnet$data$ddf %>%
+    rename(
+      site = sitename
+      ), 
+  df_flue = readr::read_csv(here::here("data/flue_stocker18nphyt.csv")),
+  before = 20,
+  after = 105,
+  leng_threshold = 10, 
+  nbins = 10, 
+  do_norm = TRUE
+  )
+
+df_dday_agg %>% 
+  ggplot() +
+  geom_hline(
+    yintercept = 0,
+    color = "black",
+    linetype = "dotted"
+    ) +
+  geom_vline(
+    xintercept = 0,
+    color = "black",
+    linetype = "dotted"
+    ) +
+  geom_line(
+    aes(
+      x = dday,
+      y = median
+      ),
+    size = 0.9) +
+  geom_ribbon(
+    aes(
+      x = dday,
+      ymin = q33,
+      ymax = q66
+      ), 
+    alpha = 0.3) +
+  scale_color_manual(
+    values = c(
+      "BRC" = "black",
+      "FULL" = "royalblue"
+      ),
+    name = "Setup"
+    ) +
+  scale_fill_manual(
+    values = c(
+      "BRC" = "black",
+      "FULL" = "royalblue"
+      ),
+    name = "Setup") +
+  ylim(-1.2, 2.2) + 
+  xlim(-20, 105) +
+  scale_x_continuous(
+    expand = c(0,0)
+    ) +
+  scale_y_continuous(
+    expand = c(0,0)
+    ) +
+  labs(
+    x = "Days after drought onset",
+    y = expression( paste( "Bias LE (j m"^{-1}, " d"^{-1}, ")")) 
+    ) +
+  theme_classic() +
+  theme(
+    panel.grid.major.y = element_line(),
+    panel.grid.major.x = element_line()
+  )
+```
+
+
+## Appendix
+
+```{r}
+sessionInfo()
+```

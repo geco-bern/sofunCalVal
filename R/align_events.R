@@ -44,31 +44,31 @@
 #' @examples df_alg <- align_events( df, truefalse, before=30, after=300 )
 
 align_events <- function(
-  df,
-  df_isevent,
-  dovars,
-  leng_threshold,
-  before,
-  after,
-  do_norm = FALSE,
-  nbins = 6,
-  normbin = 2
-  ){
-
+    df,
+    df_isevent,
+    dovars,
+    leng_threshold,
+    before,
+    after,
+    do_norm = FALSE,
+    nbins = 6,
+    normbin = 2
+){
+  
   ## merge df_isevent into df
   df <- df %>%
     left_join( df_isevent, by=c("site", "date")) %>%
     mutate( idx_df = 1:n() )
-
+  
   ##--------------------------------------------------------
   ## Identify events
   ##--------------------------------------------------------
   events <- get_consecutive(
-              df$isevent,
-              leng_threshold = leng_threshold,
-              do_merge       = FALSE
-              )
-
+    df$isevent,
+    leng_threshold = leng_threshold,
+    do_merge       = FALSE #not needed now
+  )
+  
   ##--------------------------------------------------------
   ## Re-arrange data, aligning by beginning of events
   ## Creates data frame where not all rows are retained from df
@@ -76,60 +76,66 @@ align_events <- function(
   ## and 'iinst' number of event to which row belongs.
   ##--------------------------------------------------------
   if (nrow(events)>1){
-
+    
     df_dday <- tibble()
     for ( iinst in 1:nrow(events) ){
+      
+      
       after_inst <- min( after, events$len[iinst] )
       dday <- seq( from=-before, to=after_inst, by=1 )
       idxs <- dday + events$idx_start[iinst]
-      drophead <- which( idxs < 1 )
-      if (length(drophead)>0){
-        idxs <- idxs[ -drophead ]
-        dday <- dday[ -drophead ]
+      
+      addrows <- df %>% slice( idxs ) 
+      
+      addrows <- addrows[which(addrows$site %in% unique(sort(addrows$site))[table(sort(addrows$site)) == length(dday)]),]
+      
+      if (dim(addrows )[1] > 0){
+        addrows <- addrows %>% mutate(dday=dday, inst=iinst ) 
+        
       }
-      addrows <- df %>% slice( idxs ) %>% mutate( dday=dday, inst=iinst )
+      
       df_dday <- df_dday %>% bind_rows( addrows )
     }
-
+    
     ##--------------------------------------------------------
     ## Normalise re-arranged data relative to a certain bin's median
     ##--------------------------------------------------------
     if (do_norm){
       ## Bins for different variables
       bins  <- seq( from=-before, to=after, by=(after+before+1)/nbins )
-
+      
       ## add bin information based on dday to expanded df
       df_dday <- df_dday %>% mutate( inbin  = cut( as.numeric(dday), breaks = bins ) )
-
+      
       tmp <- df_dday %>%
         dplyr::filter(!is.na(inbin)) %>%
         group_by( inbin ) %>%
         summarise_at( vars(one_of(dovars)), funs(median( ., na.rm=TRUE )) )
-
+      
       norm <- slice(tmp, normbin)
-
+      
       ## subtract from all values
       df_dday <- df_dday %>% mutate_at( vars(one_of(dovars)), funs(. - norm$.) )
-
+      
     }
-
+    
     ##--------------------------------------------------------
     ## Aggregate accross events
     ##--------------------------------------------------------
     df_dday_aggbydday <- df_dday %>%  group_by( dday ) %>%
-                                      summarise_at( vars(one_of(dovars)), funs( median = median( ., na.rm=TRUE), q33( ., na.rm=TRUE), q66( ., na.rm=TRUE) ) ) %>%
-                                      filter( !is.na( dday ) )
-
+      summarise_at( vars(one_of(dovars)), funs( median = median( ., na.rm=TRUE), q33( ., na.rm=TRUE), q66( ., na.rm=TRUE) ) ) %>%
+      filter( !is.na( dday ) )
+    
   } else {
-
+    
     df_dday           <- NULL
     df_dday_aggbydday <- NULL
-
+    
   }
-
+  
   out <- list( df_dday=df_dday, df_dday_aggbydday=df_dday_aggbydday )
   return( out )
-
+  
 }
 
 
@@ -138,12 +144,42 @@ get_consecutive <- function( dry, leng_threshold=5, anom=NULL, do_merge=FALSE ){
   ## Returns a dataframe that contains information about events (starting index and length)
   ## of consecutive conditions (TRUE) in a boolean vector ('dry' - naming is a legacy).
   ##------------------------------------
+  
+  ## identifies periods where 'dry' true for consecutive days of length>leng_threshold and
+  ## creates data frame holding each instance's info: start of drought by index in 'dry' and length (number of days thereafter)
 
   ## replace NAs with FALSE (no drought). This is needed because of NAs at head or tail
   dry[ which(is.na(dry)) ] <- FALSE
-
-  ## identifies periods where 'dry' true for consecutive days of length>leng_threshold and
-  ## creates data frame holding each instance's info: start of drought by index in 'dry' and length (number of days thereafter)
+  
+  # my implementation using rle
+  
+  instances <- rle(dry)
+  
+  # since rle calculate only the lenght of the series, I create the starting position with a loop
+  
+  # TO DO: change with an apply function
+  
+  # cumulative_idx <- c(instances$lengths[1])
+  # 
+  # new_idx <- instances$lengths[1]
+  # 
+  # for(i in 2:length(instances$lengths)){
+  #   
+  #   new_idx <- new_idx + instances$lengths[i]
+  #   
+  #   cumulative_idx <- append(cumulative_idx,new_idx)
+  # }
+  # 
+  # # data frame creation
+  # instances <- data.frame(idx_start = cumulative_idx, len =instances$lengths, bool=instances$values)
+  # 
+  # # filter
+  # 
+  # instances <- instances[instances$bool == TRUE & instances$len > leng_threshold,]
+  # 
+  # instances$bool <- NULL
+  
+  
   instances <- data.frame( idx_start=c(), len=c() )
   consecutive_dry <- rep( NA, length( dry ) )
   ndry  <- 0
@@ -228,6 +264,7 @@ get_consecutive <- function( dry, leng_threshold=5, anom=NULL, do_merge=FALSE ){
 
   }
 
+  
   return( instances )
 }
 
