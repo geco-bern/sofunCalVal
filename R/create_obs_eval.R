@@ -5,8 +5,9 @@ create_obs_eval <- function(driver, fdk_site_info){
   # daily data
   ddf_tibble_preparation <- driver |>
     unnest(forcing) |>
+    mutate(le = le*(24*60*60)) |>
     group_by(sitename) |>
-    select(date, gpp) |>
+    select(date, gpp,le) |>
     nest()
 
   ddf_tibble_preparation <- ddf_tibble_preparation$data
@@ -27,11 +28,13 @@ create_obs_eval <- function(driver, fdk_site_info){
   xdf_tibble_preparation <- driver |>
     unnest(forcing) |>
     mutate(week = lubridate::floor_date(date, "week")) |>
-    select(sitename, week, gpp) |>
+    select(sitename, week, gpp,le) |>
+    mutate(le = le*(24*60*60)) |>
     group_by(sitename, week) |>
-    summarize(gpp = sum(gpp)) |>
+    summarize(gpp = sum(gpp),
+              le = sum(le)) |>
     mutate(inbin = as.factor(week), date = week) |>
-    select(date, inbin, gpp) |>
+    select(date, inbin, gpp,le) |>
     nest()
 
   xdf_tibble_preparation <- xdf_tibble_preparation$data
@@ -52,11 +55,13 @@ create_obs_eval <- function(driver, fdk_site_info){
   mdf_tibble_preparation <- driver |>
     unnest(forcing) |>
     mutate(month = lubridate::floor_date(date, "month")) |>
-    select(sitename ,month,gpp) |>
+    select(sitename ,month,gpp,le) |>
+    mutate(le = le*(24*60*60)) |>
     group_by(sitename, month) |>
-    summarize(gpp = sum(gpp)) |>
+    summarize(gpp = sum(gpp),
+              le = sum(le)) |>
     mutate(date = month) |>
-    select(date,gpp) |>
+    select(date,gpp,le) |>
     nest()
 
   mdf_tibble_preparation <- mdf_tibble_preparation$data
@@ -78,11 +83,13 @@ create_obs_eval <- function(driver, fdk_site_info){
   adf_tibble_preparation <- driver |>
     unnest(forcing) |>
     mutate(year = lubridate::floor_date(date, "year")) |>
-    select(sitename ,year,gpp) |>
+    select(sitename ,year,gpp,le) |>
+    mutate(le = le*(24*60*60)) |>
     group_by(sitename, year) |>
-    summarize(gpp = sum(gpp)) |>
+    summarize(gpp = sum(gpp),
+              le = sum(le)) |>
     mutate(date = year) |>
-    select(date,gpp) |>
+    select(date,gpp,le) |>
     nest()
 
   adf_tibble_preparation <- adf_tibble_preparation$data
