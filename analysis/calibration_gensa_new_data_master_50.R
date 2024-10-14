@@ -50,7 +50,7 @@ validation <- driver |>
   group_by(sitename) |>
   nest(data = c(date,gpp))
 
-
+# do this in a separate script, write split to file, read same file for all calibrations.
 
 train_test_division <- function(meta_info,train_precentage){
 
@@ -83,10 +83,12 @@ train_test_division <- function(meta_info,train_precentage){
   return(result)
 }
 
-train_sitename <- train_test_division(fdk_site_info,0.5)
+train_sitename <- train_test_division(fdk_site_info, 0.5)
 
+# driver data for training set
 train_driver <- driver[driver$sitename %in% train_sitename,]
 
+# observations data for training set
 train_validation <- validation[validation$sitename %in% train_sitename,]
 
 settings <- list(
@@ -102,6 +104,7 @@ settings <- list(
   )
 )
 
+# model training (calibration)
 pars_50 <- calib_sofun(
   drivers = train_driver,
   obs = train_validation,
@@ -116,9 +119,13 @@ pars_50 <- calib_sofun(
   )
 )
 
+# training site names
 pars_50$sitename = train_sitename
 
-write_rds(pars_50,"~/data_scratch/sofuncalvalGPP/sofuncalvalGPP/data/calibration/calibration_new_data_50.rds")
+write_rds(
+  pars_50,
+  here::here("/data/calibration_new_data_50.rds")
+  )
 
 
 

@@ -2,12 +2,13 @@
 
 ```{r setup, include = FALSE}
 # Install packages
-if ("rsofun" %in% installed.packages()) remove.packages("rsofun")
-devtools::install_github(
-  "geco-bern/rsofun@master",
-  upgrade = "never",
-  force = TRUE
-  )
+# if ("rsofun" %in% installed.packages()) remove.packages("rsofun")
+# devtools::install_github(
+#   "geco-bern/rsofun@master",
+#   upgrade = "never",
+#   force = TRUE
+#   )
+
 # Load packages
 library(rsofun)
 packageVersion("rsofun")
@@ -29,21 +30,19 @@ source(here("R/eval_droughtresponse.R"))
 source(here("R/heatscatter_dependencies.R"))
 source("../R/create_obs_eval.R")
 
-
 # Set seed
 set.seed(42)
 
-
 # model forcing data
-driver <- read_rds("/data_2/FluxDataKit/v3.4/zenodo_upload/rsofun_driver_data_v3.4.rds") # currently only on workstation
+driver <- read_rds("~/data_2/FluxDataKit/v3.4/zenodo_upload/rsofun_driver_data_v3.4.rds") # currently only on workstation
 
 # site meta info
+fdk_site_info <- read_csv("~/data_2/FluxDataKit/v3.4/zenodo_upload/fdk_site_info.csv")
 
-fdk_site_info <- read_csv("/data_2/FluxDataKit/v3.4/zenodo_upload/fdk_site_info.csv")
+# data quality filter info
+fdk_filter <-  read_csv("~/data_2/FluxDataKit/v3.4/zenodo_upload/fdk_site_fullyearsequence.csv")
 
-fdk_filter <-  read_csv("/data_2/FluxDataKit/v3.4/zenodo_upload/fdk_site_fullyearsequence.csv")
-
-
+# exclude croplands and wetlands from calibration/evaluation
 fdk_site_info <- fdk_site_info[fdk_site_info$igbp_land_use != "CRO" &
                                fdk_site_info$igbp_land_use != "WET" 
                                # &
@@ -55,18 +54,47 @@ fdk_site_info <- fdk_site_info[fdk_site_info$igbp_land_use != "CRO" &
                                # fdk_site_info$sitename != "GL-Dsk"
                                ,]
 
+# apply good year sequence data quality filter for GPP
 fdk_filter <- fdk_filter[fdk_filter$drop_gpp == "FALSE",]
 
-driver <-driver[which(driver$sitename %in% fdk_site_info$sitename & 
-                      driver$sitename %in% fdk_filter$sitename),]
+driver <- driver[which(driver$sitename %in% fdk_site_info$sitename &
+                       driver$sitename %in% fdk_filter$sitename),]
 
-fdk_site_info <-fdk_site_info[which(fdk_site_info$sitename %in% driver$sitename),]
+fdk_site_info <- fdk_site_info[which(fdk_site_info$sitename %in% driver$sitename),]
 
-fdk_filter <-fdk_filter[which(fdk_filter$sitename %in% driver$sitename &
-                              fdk_filter$sitename %in% fdk_site_info$sitename),]
+fdk_filter <- fdk_filter[which(fdk_filter$sitename %in% driver$sitename &
+                               fdk_filter$sitename %in% fdk_site_info$sitename),]
 
-# select only year with good quality le
+driver_forcing <- driver |> 
+  select(sitename, forcing) |> 
+  unnest(cols = c(forcing))
 
+driver <- driver_forcing |>
+  left_join(
+    fdk_filter |> 
+      select(
+        sitename, 
+        year_start = year_start_gpp, 
+        year_end = year_end_gpp),
+    by = join_by(sitename)
+  ) |> 
+  mutate(year = year(date)) |> 
+  filter(year >= year_start & year <= year_end) |> 
+  select(-year_start, -year_end, -year) |> 
+  group_by(sitename) |> 
+  nest() |> 
+  left_join(
+    driver |> 
+      select(
+        sitename, 
+        site_info,
+        params_siml
+      ),
+    by = join_by(sitename)
+  ) |> 
+  rename(forcing = data) |> 
+  select(sitename, params_siml, site_info, forcing) |> 
+  ungroup()
 
 # site selection: good-quality sites from analysis of Stocker et al. (2018) New Phyt.
 df_flue <- readr::read_csv(here("data/flue_stocker18nphyt.csv"))
@@ -84,53 +112,46 @@ df_flue <- left_join(df_flue |>
            select(-c(year_start_gpp,year_end_gpp)) |>
            rename(site = sitename)
 
+# read fixed site split from file here, file created by a separate script 
 
+# calibrate model using code in analysis/calibration_gensa_new_data_master_50.R
+# this writes calibrated parameters to file data/calibration_new_data_50.rds
+# that file also contains the list of sites used for model training as list element $sitename
 
-obs_eval$breaks <- create_obs_eval(driver,fdk_site_info)
+par_calib <-  read_rds(here("data","calibration_new_data_50.rds"))
 
-
-# # THIS IS NOT RUN, RUN BEFOREHAND AND SPECIFY PARAMETERS BY HAND BELOW
-# set.seed(1982)
-# pars <- calib_sofun(
-#     drivers  = df_drivers_fluxnet2015 |> 
-#       dplyr::filter(sitename %in% calibsites) |> 
-#       dplyr::mutate(forcing = purrr::map(forcing, ~rename(., rain = rainf, snow = snowf))),
-#   obs      = ddf_fluxnet_gpp,
-#   settings = settings_calib
-#   )
-
+# construct list of observations used for evaluation
+# xxx creates an error
+obs_eval <- create_obs_eval(
+  driver |> 
+    filter(!(sitename %in% par_calib$sitename)),
+  fdk_site_info |> 
+    filter(!(sitename %in% par_calib$sitename))
+  )
 ```
 
 # Model parameters
 
-Model parameters are determined for this version from calibration. The code for model calibration is not shown. See `vignettes/1_p-model_reference_run.Rmd` for the code.
+Model parameters are determined for this version from calibration. The code for model calibration is not shown. See `analysis/analysis/calibration_gensa_new_data_master_50.R` for the code.
 
 ```{r}
-par_calib <-  read_rds(here("data","calibration_new_data_50.rds"))
-
 params_modl <- list(
-    kphio              = par_calib$par[["kphio"]],    
-    kphio_par_a        = par_calib$par[["kphio_par_a"]],       
-    kphio_par_b        = par_calib$par[["kphio_par_b"]],
-    soilm_thetastar    = par_calib$par[["soilm_thetastar"]],  
-    soilm_betao        = 0.0,
-    beta_unitcostratio = 146.0,
-    rd_to_vcmax        = 0.014,      # value from Atkin et al. 2015 for C3 herbaceous
-    tau_acclim         = 30.0,
-    kc_jmax            = 0.41
+  kphio              = par_calib$par[["kphio"]],    
+  kphio_par_a        = par_calib$par[["kphio_par_a"]],       
+  kphio_par_b        = par_calib$par[["kphio_par_b"]],
+  soilm_thetastar    = par_calib$par[["soilm_thetastar"]],  
+  soilm_betao        = 0.0,
+  beta_unitcostratio = 146.0,
+  rd_to_vcmax        = 0.014,      # value from Atkin et al. 2015 for C3 herbaceous
+  tau_acclim         = 30.0,
+  kc_jmax            = 0.41
   )
-  
-output <- NULL
 
-for(i in 1:nrow(driver)){
-  
-  tmp <- rsofun::runread_pmodel_f(
-  driver[i,],
+output <- runread_pmodel_f(
+  driver |> 
+    filter(!(sitename %in% par_calib$sitename)),
   par = params_modl
   )
-  output <- rbind(output, tmp)
-  
-}
 
 # TODO: some sites do not work here:
 output |>
@@ -145,7 +166,6 @@ output <- output |>
 ```
 
 # Model run
-
 
 # Run evaluation
 
@@ -178,6 +198,8 @@ out_eval$gpp$fluxnet$metrics %>%
 ```
 
 ## 8-daily, spatial and annual
+
+<!-- xxx plot means across weeks, months, years, ... -->
 
 ```{r message = FALSE, warning = FALSE, echo = FALSE}
 out_eval$gpp$fluxnet$plot$gg_modobs_xdaily
