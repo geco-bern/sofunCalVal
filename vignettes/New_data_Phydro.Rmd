@@ -142,7 +142,7 @@ Model parameters are determined for this version from calibration. The code for 
 
 ```{r warning = FALSE, message = FALSE}
 
-par_calib <-  read_rds(here("data","calibration_new_data_phydro_25.rds"))
+par_calib <-  read_rds(here("data","calibration_new_data_phydro_50.rds"))
 
 params_modl <- list(
     kphio              = par_calib$par[["kphio"]],   
@@ -168,16 +168,6 @@ driver <- driver |> unnest(params_siml) |>
   par = params_modl
  )
 
-# TODO: some sites do not work here:
-output |>
-  mutate(len = purrr::map_int(data, ~nrow(.))) |>
-  filter(len == 1) |>
-  select(-len)
-#   sitename site_info        data             
-#   <chr>    <list>           <list>           
-# 1 FR-Hes   <tibble [1 × 4]> <tibble [1 × 24]>
-# 2 SE-Nor   <tibble [1 × 4]> <tibble [1 × 24]>
-
 # remove sites where it didn't work
 output <- output |>
   mutate(len = purrr::map_int(data, ~nrow(.))) |>
@@ -190,9 +180,7 @@ output <- output |>
 This runs the `eval_sofun()` routine included in the sofunCalVal package, and outputs daily, monthly and annual summary statistics comparing observed with simulated values. We'll retake this same routine when running on the latest release (i.e. the workflow is equivalent but for the release of the `rsofun` package)
 
 ```{r warning=FALSE, message=FALSE, error=FALSE, include = FALSE}
-train_site_phydro_25 <- readRDS(here("data/train_site_phydro_25.rds"))
-
-evalsites <- output$sitename[!(output$sitename %in% train_site_phydro_25 )]
+evalsites <- output$sitename[!(output$sitename %in% par_calib$sitename )]
 
 settings_eval <- list(
   benchmark = list( gpp = c("fluxnet") ),
