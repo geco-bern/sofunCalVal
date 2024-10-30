@@ -22,11 +22,11 @@
 <meta property="og:description" content="Calibration and validation functionality for the rsofun package. Additional tools for plotting and benchmarking are also provided.">
 <meta name="twitter:card" content="summary">
 </head>
-<body>
-    <a href="#main" class="visually-hidden-focusable">Skip to contents</a>
+<body data-spy="scroll" data-target="#toc">
 
 
-    <div class="navbar navbar-default navbar-fixed-top" role="navigation">
+    <div class="container template-home">
+      <header><div class="navbar navbar-default navbar-fixed-top" role="navigation">
   <div class="container">
 
     <div class="navbar-header">
@@ -51,18 +51,30 @@
 
     <div id="navbar" class="navbar-collapse collapse">
       <ul class="nav navbar-nav navbar-right">
-<li class="nav-item"><a class="nav-link" href="reference/index.html">Reference</a></li>
-<li class="nav-item dropdown">
-  <button class="nav-link dropdown-toggle" type="button" id="dropdown-articles" data-bs-toggle="dropdown" aria-expanded="false" aria-haspopup="true">Articles</button>
-  <ul class="dropdown-menu" aria-labelledby="dropdown-articles">
-<li><a class="dropdown-item" href="articles/0_p-model_current_run.html">P-model current run</a></li>
-    <li><a class="dropdown-item" href="articles/1_p-model_reference_run.html">P-model reference run</a></li>
+<li>
+  <a href="reference/index.html">Reference</a>
+</li>
+<li class="dropdown">
+  <a href="#" class="dropdown-toggle" data-toggle="dropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+    Articles
+
+    <span class="caret"></span>
+  </a>
+  <ul class="dropdown-menu" role="menu">
+<li>
+      <a href="articles/0_p-model_current_run.html">P-model current run</a>
+    </li>
+    <li>
+      <a href="articles/1_p-model_reference_run.html">P-model reference run</a>
+    </li>
   </ul>
 </li>
-        <li class="nav-item"><form class="form-inline" role="search">
- <input class="form-control" type="search" name="search-input" id="search-input" autocomplete="off" aria-label="Search site" placeholder="Search for" data-search-index="search.json">
-</form></li>
-<li class="nav-item"><a class="external-link nav-link" href="https://github.com/geco-bern/sofunCalVal/" aria-label="GitHub"><span class="fa fab fa-github fa-lg"></span></a></li>
+        <li>
+  <a href="https://github.com/geco-bern/sofunCalVal/" class="external-link">
+    <span class="fab fa-github fa-lg"></span>
+
+  </a>
+</li>
       </ul>
 </div>
 <!--/.nav-collapse -->
@@ -71,9 +83,11 @@
 </div>
 <!--/.navbar -->
 
-    <div class="container template-home">
-<div class="row">
-  <main id="main" class="col-md-9"><div class="section level1">
+
+
+      </header><div class="row">
+  <div class="contents col-md-9">
+<div class="section level1">
 <div class="page-header"><h1 id="sofuncalval">sofunCalVal<a class="anchor" aria-label="anchor" href="#sofuncalval"></a>
 </h1></div>
 <p>Provides basic benchmarking and supporting visualization tools for the rsofun package. The package is meant for internal lab use only but might serve others as well (however limited support is provided). Keep in mind that some of the workflow is dependent on internal compute infrastructure limiting the use of benchmarks.</p>
@@ -83,7 +97,10 @@
 <p>The package can be used offline by running (knitting) the included vignettes. However, normal use is online using github actions triggering a build process of the included vignettes, visualizing benchmarking results.</p>
 </div>
 </div>
-  </main><aside class="col-md-3"><div class="links">
+  </div>
+
+  <div class="col-md-3 hidden-xs hidden-sm" id="pkgdown-sidebar">
+    <div class="links">
 <h2 data-toc-skip>Links</h2>
 <ul class="list-unstyled">
 <li><a href="https://github.com/geco-bern/sofunCalVal/" class="external-link">Browse source code</a></li>
@@ -116,11 +133,11 @@
 
 
 
-  </aside>
+  </div>
 </div>
 
 
-    <footer><!-- begin footer --><div class="footer">
+      <footer><!-- begin footer --><div class="footer">
     <div class="container">
         <div class="row start bottom-8">
             <div class="col-xs-10">
@@ -159,8 +176,9 @@
 </div>
 <!-- / end footer -->
 
-    </footer>
+      </footer>
 </div>
+
 
 
 
