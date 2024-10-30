@@ -1,7 +1,7 @@
 pandoc: 3.1.11
-pkgdown: 2.1.0
+pkgdown: 2.1.1
 pkgdown_sha: ~
 articles:
   0_p-model_current_run: 0_p-model_current_run.html
   1_p-model_reference_run: 1_p-model_reference_run.html
-last_built: 2024-08-09T12:14Z
+last_built: 2024-10-30T12:49Z
