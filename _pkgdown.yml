@@ -1,6 +1,5 @@
 url: https://geco-bern.github.io/sofunCalVal/
 template:
-  bootstrap: 5
   package: gecotemplate
   params:
   mathjax: true
