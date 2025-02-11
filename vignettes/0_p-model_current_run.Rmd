@@ -51,7 +51,6 @@ system(paste(here::here("src/submit_byfold.sh"), here::here()))
 ```
 
 
-
 ```{r}
 # only select the sites from the New Phytologist paper
 # load site list and filter on these (see below)

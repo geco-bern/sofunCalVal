@@ -1,7 +1,15 @@
 #!/usr/bin/env Rscript
 args = commandArgs(trailingOnly=TRUE)   # to receive arguments from the shell: number of fold (1-5)
+
+# This script runs the calibration for one fold. It reads the full rsofun
+# driver data, subsets it for the training set of this fold, calls the
+# calibration function, and writes its output to file.
+
 fold <-  as.integer(args[1])
 message(paste("Fold ", fold))
+
+library(tidyverse)
+library(rsofun)
 
 source(here::here("R/create_data_split.R"))
 source(here::here("R/calibrate_rsofun.R"))

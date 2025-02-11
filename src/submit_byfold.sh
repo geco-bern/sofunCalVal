@@ -1,4 +1,7 @@
 #!/bin/bash
+
+# This shell script is used to submit individual jobs for calibration by fold.
+
 nfolds=5
 for ((n=1;n<=${nfolds};n++)); do
   # echo "Submitting chunk number $n ..."

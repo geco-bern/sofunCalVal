@@ -1,7 +1,9 @@
+# This function creates data splits along FLUXNET sites, present in the
+# rsofun driver from FluxDataKit, to be used for a 5-fold (spatial) cross-validation.
+# Folds are stratified by mean annual temperature and moisture index, based on
+# Samantha Biegel's selection (code not present in this repo).
 create_data_split <- function(){
 
-  # splits stratified by mean annual temperature and moisture index, based on
-  # Samantha's selection
   splits <- list()
 
   splits[[1]] <- list()

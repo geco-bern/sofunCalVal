@@ -1,12 +1,14 @@
+# Wrapper function using the functionalities of rsofun and specifying
+# calibrated and fixed parameters and their prior distributions.
+# Returns the output object of rsofun::calib_sofun() which contains the calibrated
+# parameters as a maximum a posteriori estimate and the full information
+# returned by BayesianTools::runMCMC().
 calibrate_rsofun <- function(use_drivers, parallel = FALSE, ncores = 1){
 
   # enable the use of parallel computation (by site)
   use_cost_likelihood_pmodel <- function(...){
     rsofun::cost_likelihood_pmodel(..., parallel = parallel, ncores = ncores)
   }
-
-  require(tidyverse)
-  require(rsofun)
 
   # get calibration target data, filter only good-quality data to be used for
   # calibration
