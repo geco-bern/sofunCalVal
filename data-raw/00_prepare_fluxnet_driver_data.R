@@ -4,7 +4,7 @@ library(tidyverse)
 library(FluxDataKit)
 
 # Read rsofun driver data
-p_model_fluxnet_drivers <- read_rds("~/data_2/FluxDataKit/v3.4/zenodo_upload/rsofun_driver_data_v3.4.2.rds")
+p_model_fluxnet_drivers <- read_rds("/data_2/FluxDataKit/v3.4/zenodo_upload/rsofun_driver_data_v3.4.2.rds")
 
 # Extract forcing time series
 ddf <- p_model_fluxnet_drivers |>

@@ -20,7 +20,7 @@ devtools::install_github(
   force = TRUE
   )
 
-install.packages("rpmodel")
+# install.packages("rpmodel")
 
 # Load packages
 library(rpmodel)
@@ -45,60 +45,9 @@ source("../R/calibrate_rsofun.R")
 set.seed(1982)
 ```
 
-Get test/train split.
+Calibrate parameters for five folds, determined by spatial (leave-site-out) cross-validation. This creates five files containing calibrated parameters and the BayesianTools model object returned from the MCMC.
 ```{r}
-splits <- create_data_split()
-```
-
-```{r}
-drivers <- readRDS(here::here("data/drivers.rds"))
-
-drivers_train <- drivers |> 
-  dplyr::filter(sitename %in% splits[[1]]$train_sitename)
-drivers_test <- drivers |> 
-  dplyr::filter(sitename %in% splits[[1]]$test_sitename)
-```
-
-<!-- Test with parallel computation: No gains! -->
-<!-- ```{r} -->
-<!-- par <- list( -->
-<!--   kphio = 0.04102119, -->
-<!--   kphio_par_a = -0.002289344, -->
-<!--   kphio_par_b = 15.25094, -->
-<!--   soilm_thetastar = 157.7507, -->
-<!--   soilm_betao = 0.0001169702, -->
-<!--   err_gpp = 1.074112 -->
-<!--   ) -->
-
-<!-- tictoc::tic() -->
-<!-- notparallel <- runread_pmodel_f( -->
-<!--   drivers, -->
-<!--   par, -->
-<!--   makecheck = FALSE, -->
-<!--   parallel = FALSE, -->
-<!--   ncores = 1 -->
-<!--   ) -->
-<!-- tictoc::toc() -->
-
-<!-- tictoc::tic() -->
-<!-- notparallel <- runread_pmodel_f( -->
-<!--   drivers, -->
-<!--   par, -->
-<!--   makecheck = FALSE, -->
-<!--   parallel = TRUE, -->
-<!--   ncores = 2 -->
-<!--   ) -->
-<!-- tictoc::toc() -->
-<!-- ``` -->
-
-Calibrate parameters.
-```{r}
-tictoc::tic()
-par_calib <- calibrate_rsofun(
-  drivers_train, 
-  parallel = FALSE
-  )
-tictoc::toc()
+system(paste(here::here("src/submit_byfold.sh"), here::here()))
 ```
 
 
