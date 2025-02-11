@@ -1,4 +1,9 @@
-calibrate_rsofun <- function(use_drivers){
+calibrate_rsofun <- function(use_drivers, parallel = FALSE, ncores = 1){
+
+  # enable the use of parallel computation (by site)
+  use_cost_likelihood_pmodel <- function(...){
+    rsofun::cost_likelihood_pmodel(..., parallel = parallel, ncores = ncores)
+  }
 
   # get calibration target data, filter only good-quality data to be used for
   # calibration
@@ -18,7 +23,7 @@ calibrate_rsofun <- function(use_drivers){
   # Define calibration settings
   settings_calib <- list(
     method = "BayesianTools",
-    metric = rsofun::cost_likelihood_pmodel,
+    metric = use_cost_likelihood_pmodel,
     control = list(
       sampler = "DEzs",
       settings = list(
