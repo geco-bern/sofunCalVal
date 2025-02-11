@@ -1,5 +1,8 @@
 calibrate_rsofun <- function(use_drivers){
 
+  require(tidyverse)
+  require(rsofun)
+
   # get calibration target data, filter only good-quality data to be used for
   # calibration
   get_validation_data <- function(df){

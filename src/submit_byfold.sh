@@ -1,0 +1,10 @@
+#!/bin/bash
+nfolds=5
+for ((n=1;n<=${nfolds};n++)); do
+  # echo "Submitting chunk number $n ..."
+  # bsub -W 72:00 -u bestocke -J "job_name $n" -R "rusage[mem=10000]" "Rscript vanilla analysis/add_loess_bychunk.R $n $njobs $nlon"
+
+  # Calibrating by fold
+  $1/analysis/rscript_calibrate_byfold.R $n
+
+done

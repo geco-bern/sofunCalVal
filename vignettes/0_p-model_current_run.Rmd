@@ -20,7 +20,7 @@ devtools::install_github(
   force = TRUE
   )
 
-install.packages("rpmodel")
+# install.packages("rpmodel")
 
 # Load packages
 library(rpmodel)
@@ -45,23 +45,9 @@ source("../R/calibrate_rsofun.R")
 set.seed(1982)
 ```
 
-Get test/train split.
+Calibrate parameters for five folds, determined by spatial (leave-site-out) cross-validation. This creates five files containing calibrated parameters and the BayesianTools model object returned from the MCMC.
 ```{r}
-splits <- create_data_split()
-```
-
-Calibrate parameters.
-```{r}
-drivers <- readRDS(here::here("data/drivers.rds"))
-
-drivers_train <- drivers |> 
-  dplyr::filter(sitename %in% splits[[1]]$train_sitename)
-drivers_test <- drivers |> 
-  dplyr::filter(sitename %in% splits[[1]]$test_sitename)
-
-tictoc::tic()
-par_calib <- calibrate_rsofun(drivers_train)
-tictoc::toc()
+system(paste(here::here("src/submit_byfold.sh"), here::here()))
 ```
 
 
