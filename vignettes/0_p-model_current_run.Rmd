@@ -45,7 +45,7 @@ source("../R/calibrate_rsofun.R")
 set.seed(1982)
 ```
 
-Before compiling this vignette run `r source(here::here("analysis/01_submit_calibration_current_run.R"))` to calibrate parameters for all folds, determined by spatial cross-validation. This creates five files containing calibrated parameters and the {BayesianTools} model object returned from the MCMC. Read the files.
+Before compiling this vignette, run `r source(here::here("analysis/01_submit_calibration_current_run.R"))` to calibrate parameters for five folds, split by site for spatial cross-validation. This creates five files containing calibrated parameters and the {BayesianTools} model object returned from the MCMC. Read the files.
 ```{r}
 # source(here::here("analysis/01_submit_calibration_current_run.R"))
 ```

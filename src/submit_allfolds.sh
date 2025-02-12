@@ -10,6 +10,6 @@ for ((n=1;n<=${nfolds};n++)); do
 
   # Local machine:
   # Calibrating by fold
-  $1/analysis/rscript_calibrate_byfold.R $n
+  Rscript $1/analysis/rscript_calibrate_byfold.R $n
 
 done
