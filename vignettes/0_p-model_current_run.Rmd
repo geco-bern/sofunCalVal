@@ -41,67 +41,70 @@ source("../R/analyse_modobs2.R")
 source("../R/create_data_split.R")
 source("../R/calibrate_rsofun.R")
 
-# Set seed
-set.seed(1982)
-```
-
-Before compiling this vignette, run `r source(here::here("analysis/01_submit_calibration_current_run.R"))` to calibrate parameters for five folds, split by site for spatial cross-validation. This creates five files containing calibrated parameters and the {BayesianTools} model object returned from the MCMC. Read the files.
-```{r}
-# source(here::here("analysis/01_submit_calibration_current_run.R"))
-```
-
-
-```{r}
-# only select the sites from the New Phytologist paper
-# load site list and filter on these (see below)
-flue_sites <- readr::read_csv(here::here("data/flue_stocker18nphyt.csv")) %>%
-  dplyr::filter( !is.na(cluster) ) %>%
-  distinct(site) %>%
-  pull(site)
-
 # site selection: good-quality sites from analysis of Stocker et al. (2018) New Phyt.
 flue_sites <- readr::read_csv(here("data/flue_stocker18nphyt.csv")) %>%
   dplyr::filter( !is.na(cluster) ) %>%
   distinct(site) %>%
   pull(site)
+
+# Set seed
+set.seed(1982)
 ```
 
-# Model parameters
+## Calibrate
 
-Model parameters are determined for this version from calibration. The code for model calibration is not shown. See `vignettes/0_p-model_current_run.Rmd` for the code.
+Before compiling this vignette, run 
+
+```{r, eval=FALSE} 
+# for multiple folds
+# source(here::here("analysis/01_submit_calibration_current_run.R"))
+
+# for single fold
+source(here::here("analysis/rscript_calibrate_single.R"))
+```
+
+to calibrate parameters for five folds, split by site for spatial cross-validation. This creates five files containing calibrated parameters and the {BayesianTools} model object returned from the MCMC. Read the files.
+```{r}
+# source(here::here("analysis/01_submit_calibration_current_run.R"))
+par_calib <- readRDS(here::here("data/par_calib_single.rds"))
+```
+
+Some diagnostics.
+```{r}
+plot(par_calib$mod)
+```
+
+## Predict and test
 
 ```{r}
-params_modl <- list(
-  kphio              = 0.04090209, # 0.09423773,  # par_calib$par["kphio"],
-  kphio_par_a        = -0.001366283, # par_calib$par["kphio_par_a"],
-  kphio_par_b        = par_fixed["kphio_par_b"],
-  soilm_thetastar    = par_fixed["soilm_thetastar"],
-  soilm_betao        = 0.683499654, # par_calib$par["soilm_betao"], # 0,  # 
-  beta_unitcostratio = par_fixed["beta_unitcostratio"],
-  rd_to_vcmax        = par_fixed["rd_to_vcmax"],
-  tau_acclim         = par_fixed["tau_acclim"],
-  kc_jmax            = 0.200000000 # par_calib$par["kc_jmax"] # 0.41  # 
+# get pre-determined splits for five folds
+splits <- create_data_split()
+
+# load driver data for all sites
+drivers <- readRDS(here::here("data/drivers.rds"))
+
+# determine training data subset for this fold
+fold <- 1
+drivers_test <- drivers |>
+  dplyr::filter(sitename %in% splits[[fold]]$test_sitename)
+
+# Combine fixed and calibrated model parameters
+# NOTE: this must be consistent with values specified in calibrate_rsofun().
+par_fixed <- list(
+  beta_unitcostratio = 146.0,
+  kc_jmax            = 0.41,
+  rd_to_vcmax        = 0.014,
+  tau_acclim         = 20.0
+)
+
+par <- c(par_calib_fold_1$par, par_fixed)
+
+output <- runread_pmodel_f(
+  drivers = drivers_test,
+  par = par
 )
 ```
 
-# Model run
-
-```{r warning = FALSE, message = FALSE}
-output <- rsofun::runread_pmodel_f(
-  df_drivers_fluxnet2015 |>
-    dplyr::mutate(
-      forcing = purrr::map(
-        forcing,
-        ~rename(., rain = rainf, snow = snowf))
-      ) |>
-    dplyr::mutate(
-      forcing = purrr::map(
-        forcing,
-        ~mutate(., netrad = 0))
-    ),
-  par = params_modl
-)
-```
 
 # Run evaluation
 
