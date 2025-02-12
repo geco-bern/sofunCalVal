@@ -45,9 +45,9 @@ source("../R/calibrate_rsofun.R")
 set.seed(1982)
 ```
 
-Calibrate parameters for five folds, determined by spatial (leave-site-out) cross-validation. This creates five files containing calibrated parameters and the BayesianTools model object returned from the MCMC.
+Before compiling this vignette run `r source(here::here("analysis/01_submit_calibration_current_run.R"))` to calibrate parameters for all folds, determined by spatial cross-validation. This creates five files containing calibrated parameters and the {BayesianTools} model object returned from the MCMC. Read the files.
 ```{r}
-system(paste(here::here("src/submit_byfold.sh"), here::here()))
+# source(here::here("analysis/01_submit_calibration_current_run.R"))
 ```
 
 

@@ -32,9 +32,12 @@ calibrate_rsofun <- function(use_drivers, parallel = FALSE, ncores = 1){
     control = list(
       sampler = "DEzs",
       settings = list(
-        burnin = 12000,
-        iterations = 24000,
-        nrChains = 3,       # number of independent chains
+        # burnin = 12000,
+        # iterations = 24000,
+        burnin = 1200,
+        iterations = 2400,
+        # nrChains = 3,       # number of independent chains
+        nrChains = 1,       # number of independent chains
         startValue = 3      # number of internal chains to be sampled
       )),
     par = list(
