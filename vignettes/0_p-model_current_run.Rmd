@@ -77,16 +77,8 @@ plot(par_calib$mod)
 ## Predict and test
 
 ```{r}
-# get pre-determined splits for five folds
-splits <- create_data_split()
-
 # load driver data for all sites
 drivers <- readRDS(here::here("data/drivers.rds"))
-
-# determine training data subset for this fold
-fold <- 1
-drivers_test <- drivers |>
-  dplyr::filter(sitename %in% splits[[fold]]$test_sitename)
 
 # Combine fixed and calibrated model parameters
 # NOTE: this must be consistent with values specified in calibrate_rsofun().
@@ -100,7 +92,7 @@ par_fixed <- list(
 par <- c(par_calib_fold_1$par, par_fixed)
 
 output <- runread_pmodel_f(
-  drivers = drivers_test,
+  drivers = drivers,
   par = par
 )
 ```
