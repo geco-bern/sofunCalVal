@@ -1,0 +1,1332 @@
+In this report, the driver is referred as the driver data as it is downloaded from zenodo. meanwhile, anything with the suffix _2m has the WHC taken from the previous estimation.
+
+# Library and data loading
+
+
+```{r}
+# Install packages
+# if ("rsofun" %in% installed.packages()) remove.packages("rsofun")
+# devtools::install_github(
+#   "geco-bern/rsofun",
+#   ref = "phydro",
+#   upgrade = "never",
+#   force = TRUE
+#   )
+
+# Load packages
+library(rsofun)
+library(dplyr)
+library(tidyr)
+library(readr)
+library(ggplot2)
+library(lubridate)
+library(knitr)
+library(ggthemes)
+library(here)
+library(ncdf4)
+
+
+# Load functions
+source( here("R","eval_sofun.R"))
+source(here("R/get_stats.R"))
+source(here("R/analyse_modobs2.R"))
+source(here("R/align_events.R"))
+source(here("R/eval_droughtresponse.R"))
+source(here("R/heatscatter_dependencies.R"))
+
+
+
+# Set seed
+set.seed(42)
+
+# only select the sites from the New Phytologist paper
+
+# need to ask to Beni why
+
+# load site list and filter on these (see below)
+# flue_sites <- readr::read_csv(here::here("data/flue_stocker18nphyt.csv")) %>%
+#   dplyr::filter( !is.na(cluster) ) %>%
+#   distinct(site) %>%
+#   pull(site)
+
+# model forcing data
+driver <- read_rds("/data_2/FluxDataKit/v3.4/zenodo_upload/rsofun_driver_data_v3.4.rds") # currently only on workstation
+
+fdk_site_info <- read_csv(here("data/fdk_site_info.csv"))
+
+fdk_filter <-  read_csv(here("data/fdk_site_fullyearsequence.csv"))
+
+# these sites do not yield any result
+
+fdk_site_info <- fdk_site_info[fdk_site_info$igbp_land_use != "CRO" &
+                               fdk_site_info$igbp_land_use != "WET" &
+                               fdk_site_info$sitename != "CA-SF1" &
+                               fdk_site_info$sitename != "CA-SF3" &
+                               fdk_site_info$sitename != "GF-Guy" &
+                               fdk_site_info$sitename != "ID-Pag" &
+                               fdk_site_info$sitename != "US-HWB" & 
+                               fdk_site_info$sitename != "GL-Dsk",]
+
+fdk_filter <- fdk_filter[fdk_filter$drop_le == "FALSE",]
+
+driver <-driver[which(driver$sitename %in% fdk_site_info$sitename & 
+                      driver$sitename %in% fdk_filter$sitename),]
+
+fdk_site_info <-fdk_site_info[which(fdk_site_info$sitename %in% driver$sitename),]
+
+fdk_filter <-fdk_filter[which(fdk_filter$sitename %in% driver$sitename &
+                              fdk_filter$sitename %in% fdk_site_info$sitename),]
+
+# select only year with good quality le
+
+driver <- left_join(
+  driver, fdk_filter |>
+  select(sitename,year_start_le,year_end_le),
+  by = "sitename") |>
+  unnest(forcing) |>
+  filter(between(as_date(date),
+                 as_date(paste0(year_start_le,"-01-01")),
+                 as_date(paste0(year_end_le,"-12-31"))
+                 )
+         ) |>
+  group_by(sitename) |>
+  nest(data = colnames(driver[1,]$forcing[[1]])) |>
+  rename(forcing = data) |>
+  select(-c(year_start_le,year_end_le))
+
+df_flue <-  read_csv(here("data/flue_stocker18nphyt.csv"))
+
+df_flue <- df_flue[df_flue$site %in% fdk_filter$sitename,]
+
+df_flue <- left_join(df_flue |>
+                       rename(sitename = site), fdk_filter |>
+                       select(sitename,year_start_le,year_end_le),
+                       by = "sitename") |>
+           filter(between(as_date(date),
+                 as_date(paste0(year_start_le,"-01-01")),
+                 as_date(paste0(year_end_le,"-12-31"))
+                 )) |>
+           select(-c(year_start_le,year_end_le)) |>
+           rename(site = sitename)
+
+
+
+
+# load previous data for the structure
+load(here("data/obs_eval_fluxnet2015.Rdata"))
+```
+
+
+```{r}
+# changing the obs val to the new version with le
+
+# daily data
+
+ddf_tibble_preparation <- driver |>
+  unnest(forcing) |>
+  group_by(sitename) |>
+  select(date,le) |>
+  mutate(le = le *(24*60*60)) |> # transform seconds to day
+  nest()
+
+ddf_tibble_preparation <- ddf_tibble_preparation$data
+
+obs_eval$ddf <- tibble(sitename = fdk_site_info$sitename,
+                       lon = fdk_site_info$lon,
+                       lat = fdk_site_info$lat,
+                       elv = fdk_site_info$elv,
+                       classid = fdk_site_info$igbp_land_use,
+                       whc = fdk_site_info$whc,
+                       koeppen_code = fdk_site_info$koeppen_code,
+                       igbp_land_use = fdk_site_info$igbp_land_use,
+                       plant_functioanl_type= NA,
+                       c4 = FALSE,
+                       data = ddf_tibble_preparation)
+
+# weekly data
+
+xdf_tibble_preparation <- driver |>
+  unnest(forcing) |>
+  mutate(week = lubridate::floor_date(date, "week")) |>
+  select(sitename ,week,le) |>
+  group_by(sitename, week) |>
+  summarize(le = sum(le)) |>
+  mutate(inbin = as.factor(week), date = week) |>
+  mutate(le = le *(24*60*60)) |> # transform seconds to day
+  select(date,inbin,le) |>
+  nest()
+
+xdf_tibble_preparation <- xdf_tibble_preparation$data
+
+obs_eval$xdf <- tibble(sitename = fdk_site_info$sitename,
+                       lon = fdk_site_info$lon,
+                       lat = fdk_site_info$lat,
+                       elv = fdk_site_info$elv,
+                       classid = fdk_site_info$igbp_land_use,
+                       whc = fdk_site_info$whc,
+                       koeppen_code = fdk_site_info$koeppen_code,
+                       igbp_land_use = fdk_site_info$igbp_land_use,
+                       plant_functioanl_type= NA,
+                       c4 = FALSE,
+                       data = xdf_tibble_preparation)
+
+# monthly data
+
+mdf_tibble_preparation <- driver |>
+  unnest(forcing) |>
+  mutate(month = lubridate::floor_date(date, "month")) |>
+  select(sitename ,month,le) |>
+  group_by(sitename, month) |>
+  summarize(le = sum(le)) |>
+  mutate(date = month) |>
+  mutate(le = le *(24*60*60)) |> # transform seconds to day
+  select(date,le) |>
+  nest()
+
+mdf_tibble_preparation <- mdf_tibble_preparation$data
+
+obs_eval$mdf <- tibble(sitename = fdk_site_info$sitename,
+                       lon = fdk_site_info$lon,
+                       lat = fdk_site_info$lat,
+                       elv = fdk_site_info$elv,
+                       classid = fdk_site_info$igbp_land_use,
+                       whc = fdk_site_info$whc,
+                       koeppen_code = fdk_site_info$koeppen_code,
+                       igbp_land_use = fdk_site_info$igbp_land_use,
+                       plant_functioanl_type= NA,
+                       c4 = FALSE,
+                       data = mdf_tibble_preparation)
+
+# annual data
+
+adf_tibble_preparation <- driver |>
+  unnest(forcing) |>
+  mutate(year = lubridate::floor_date(date, "year")) |>
+  select(sitename ,year,le) |>
+  group_by(sitename, year) |>
+  summarize(le = sum(le)) |>
+  mutate(le = le *(24*60*60)) |> # transform seconds to day
+  mutate(date = year) |>
+  select(date,le) |>
+  nest()
+
+adf_tibble_preparation <- adf_tibble_preparation$data
+
+obs_eval$adf <- tibble(sitename = fdk_site_info$sitename,
+                       lon = fdk_site_info$lon,
+                       lat = fdk_site_info$lat,
+                       elv = fdk_site_info$elv,
+                       classid = fdk_site_info$igbp_land_use,
+                       whc = fdk_site_info$whc,
+                       koeppen_code = fdk_site_info$koeppen_code,
+                       igbp_land_use = fdk_site_info$igbp_land_use,
+                       plant_functioanl_type= NA,
+                       c4 = FALSE,
+                       data = adf_tibble_preparation)
+
+
+breaks_preparation <- driver |> 
+  unnest(forcing) |> 
+  select(date) |> 
+  arrange(date) |>
+  distinct(date) |>
+  mutate(breaks = lubridate::floor_date(date, "week"))
+
+
+obs_eval$breaks <- unique((breaks_preparation$breaks))[-1]
+
+# GenSa calibration settings for v4.4
+settings_calib <- list(
+  method = "GenSA",
+  metric = cost_rmse_pmodel,
+  control = list(maxit = 100),
+  par = list(
+    kphio = list(lower = 0.03, upper = 0.15, init = 0.05),
+    kphio_par_a = list(lower = -0.005, upper = 0, init = -0.0025),
+    soilm_betao = list(lower = 0, upper = 1, init = 0.2),
+    kc_jmax = list(lower = 0.2, upper = 0.8, init = 0.41)
+  )
+)
+
+# fixed (not calibrated) model parameters
+par_fixed = list(
+  kphio_par_b        = 20,
+  soilm_thetastar    = 0.6*240,
+  beta_unitcostratio = 146.0,
+  rd_to_vcmax        = 0.014,
+  tau_acclim         = 30.0
+  )
+
+# creating driver data with constant WHC
+
+driver_2m <- driver 
+
+driver_2m <-driver_2m[which(driver_2m$sitename %in% fdk_site_info$sitename),]
+
+
+nc_file <- nc_open(here("data/whc_2m.nc"))
+
+whc = ncvar_get(nc_file, "whc_2m")
+lons = ncvar_get(nc_file, "lon")
+lats = ncvar_get(nc_file, "lat")
+
+geo <- driver_2m |>
+  unnest(site_info) |>
+  select(lon  , lat)
+
+geo$sitename <- driver_2m$sitename
+
+n <- 1 # parameter to select size of slice to average
+
+old_whc <- lapply(geo$sitename, function(x){
+  tmp <- geo[geo$sitename == x,]
+  lonid <- which(lons > tmp$lon)[1]
+  latid <- which(lats > tmp$lat)[1]
+  whc_grid <- whc[(lonid-n):(lonid+n), (latid-n):(latid+n)]
+  whc_site <- mean(as.numeric(whc_grid, na.rm=T))
+  return(whc_site)
+})
+
+old_whc = unlist(old_whc)
+
+for(i in 1:dim(driver_2m)[1]){
+  driver_2m$site_info[i][[1]][4] <- old_whc[i]
+}
+
+rm(whc,old_whc,nc_file,lons,lats,breaks_preparation,
+   adf_tibble_preparation,mdf_tibble_preparation,
+   xdf_tibble_preparation,ddf_tibble_preparation
+   ) # for memory
+
+```
+
+# 1.1 P model
+
+I run the p model as it is
+
+# Model run
+
+```{r warning = FALSE, message = FALSE}
+
+output <- NULL
+output_2m <- NULL
+
+for(i in 1:dim(driver[1])){
+  
+  params_modl <- list(
+    kphio              = 0.04998,    # setup ORG in Stocker et al. 2020 GMD
+    kphio_par_a        = 0.0,     
+    kphio_par_b        = 1.0,
+    soilm_thetastar    = 0.6 * 240,  # to recover old setup with soil moisture stress
+    soilm_betao        = 0.0,
+    beta_unitcostratio = 146.0,
+    rd_to_vcmax        = 0.014,      # value from Atkin et al. 2015 for C3 herbaceous
+    tau_acclim         = 30.0,
+    kc_jmax            = 0.41,
+    whc                = driver$site_info[[i]]$whc
+  )
+  
+  
+ tmp <- rsofun::runread_pmodel_f(
+  driver[i,],
+  par = params_modl
+ )
+  
+  params_modl <- list(
+    kphio              = 0.04998,    # setup ORG in Stocker et al. 2020 GMD
+    kphio_par_a        = 0.0,     
+    kphio_par_b        = 1.0,
+    soilm_thetastar    = 0.6 * 240,  # to recover old setup with soil moisture stress
+    soilm_betao        = 0.0,
+    beta_unitcostratio = 146.0,
+    rd_to_vcmax        = 0.014,      # value from Atkin et al. 2015 for C3 herbaceous
+    tau_acclim         = 30.0,
+    kc_jmax            = 0.41,
+    whc                = driver_2m$site_info[[i]]$whc
+  )
+  
+  tmp_2m <- rsofun::runread_pmodel_f(
+  driver_2m[i,],
+  par = params_modl
+ )
+  
+  output <- rbind(output,tmp)
+  output_2m <- rbind(output_2m,tmp_2m)
+
+}
+
+output <- output |>
+  mutate(len = purrr::map_int(data, ~nrow(.))) |>
+  filter(len != 1) |>
+  select(-len)
+
+output_2m <- output_2m |>
+  mutate(len = purrr::map_int(data, ~nrow(.))) |>
+  filter(len != 1) |>
+  select(-len)
+```
+
+# Run evaluation
+
+```{r error=FALSE, message=FALSE, warning=FALSE, include=}
+evalsites <- output %>%
+  mutate(ntsteps = purrr::map_dbl(data, ~nrow(.))) %>%
+  dplyr::filter(ntsteps > 0) %>%
+  pull(sitename)
+
+settings_eval <- list(
+  benchmark = list(le = c("fluxnet") ),
+  sitenames = evalsites,
+  agg       = 8
+)
+
+##  Evaluate model 
+out_eval <- eval_sofun(
+  output,
+  settings_eval,
+  obs_eval = obs_eval,
+  overwrite = TRUE,
+  light = FALSE
+)
+
+##  Evaluate model 
+out_eval_2m <- eval_sofun(
+  output_2m,
+  settings_eval,
+  obs_eval = obs_eval,
+  overwrite = TRUE,
+  light = FALSE
+)
+
+```
+
+# Results
+
+```{r warning=FALSE, message=FALSE, error=FALSE, echo = FALSE}
+out_eval$le$fluxnet$metrics %>% 
+  bind_rows(.id = "Level") %>% 
+  kable(caption  ="results from spatially vary WHC")
+```
+
+```{r  warning=FALSE, message=FALSE, error=FALSE, echo = FALSE}
+out_eval_2m$le$fluxnet$metrics %>% 
+  bind_rows(.id = "Level") %>% 
+  kable(caption  ="results from constant WHC")
+```
+
+
+
+## 8-daily, spatial and annual
+
+```{r message = FALSE, warning = FALSE, echo = FALSE}
+out_eval$le$fluxnet$plot$gg_modobs_xdaily
+max(out_eval$le$fluxnet$data$xdf$obs,na.rm = TRUE)
+out_eval$le$fluxnet$plot$gg_modobs_spatial_annual
+```
+
+
+```{r message = FALSE, warning = FALSE, echo = FALSE}
+out_eval_2m$le$fluxnet$plot$gg_modobs_xdaily
+out_eval_2m$le$fluxnet$plot$gg_modobs_spatial_annual
+```
+
+
+## Mean seasonal cycle
+
+```{r message = FALSE, warning = FALSE, echo = FALSE}
+out_eval$le$fluxnet$data$meandoydf_byclim %>% 
+  dplyr::filter(climatezone %in% c(
+    "Aw south", "BSk north", "Cfa north",
+    "Cfb north", "Cfb south", "Csa north",
+    "Csb north", "Dfb north", "Dfc north")
+    ) %>%
+  dplyr::filter(koeppen_code != "-") %>% 
+  pivot_longer(
+    c(obs_mean, mod_mean),
+    names_to = "source",
+    values_to = "le"
+    ) %>% 
+  ggplot() +
+  geom_ribbon(
+    aes(x = doy, ymin = obs_min, ymax = obs_max), 
+    fill = "black", 
+    alpha = 0.2
+    ) +
+  geom_line(aes(x = doy, y = le, color = source), size = 0.4) +
+  labs(y = expression( paste("Simulated le (J m"^-2, " d"^-1, ")" ) ), 
+       x = "DOY") +
+  ggtitle("variable WHC") +
+  facet_wrap( ~climatezone ) +
+  theme_gray() +
+  theme(legend.position = "bottom") +
+  scale_color_manual(
+    name="Setup: ",
+    values=c("red", "black")
+    )
+```
+
+```{r message = FALSE, warning = FALSE, echo = FALSE}
+out_eval_2m$le$fluxnet$data$meandoydf_byclim %>% 
+  dplyr::filter(climatezone %in% c(
+    "Aw south", "BSk north", "Cfa north",
+    "Cfb north", "Cfb south", "Csa north",
+    "Csb north", "Dfb north", "Dfc north")
+    ) %>%
+  dplyr::filter(koeppen_code != "-") %>% 
+  pivot_longer(
+    c(obs_mean, mod_mean),
+    names_to = "source",
+    values_to = "le"
+    ) %>% 
+  ggplot() +
+  geom_ribbon(
+    aes(x = doy, ymin = obs_min, ymax = obs_max), 
+    fill = "black", 
+    alpha = 0.2
+    ) +
+  geom_line(aes(x = doy, y = le, color = source), size = 0.4) +
+  labs(y = expression( paste("Simulated le (J m"^-2, " d"^-1, ")" ) ), 
+       x = "DOY") +
+    ggtitle("constant WHC") +
+  facet_wrap( ~climatezone ) +
+  theme_gray() +
+  theme(legend.position = "bottom") +
+  scale_color_manual(
+    name="Setup: ",
+    values=c("red", "black")
+    )
+```
+
+
+
+
+## Drought response
+
+```{r message = FALSE, warning = FALSE, echo = FALSE}
+
+df_dday_agg <- eval_droughtresponse( 
+  df = out_eval$le$fluxnet$data$ddf %>%
+    rename(
+      site = sitename
+      ), 
+  df_flue = df_flue,
+  before=20,
+  after=105,
+  leng_threshold = 10, 
+  nbins=10, 
+  do_norm=TRUE
+  )
+
+df_dday_agg %>% 
+  ggplot() +
+  geom_hline(
+    yintercept = 0,
+    color = "black",
+    linetype = "dotted"
+    ) +
+  geom_vline(
+    xintercept = 0,
+    color = "black",
+    linetype = "dotted"
+    ) +
+  geom_line(
+    aes(
+      x = dday,
+      y = median
+      ),
+    size = 0.9) +
+  geom_ribbon(
+    aes(
+      x = dday,
+      ymin = q33,
+      ymax = q66
+      ), 
+    alpha = 0.3) +
+  scale_color_manual(
+    values = c(
+      "BRC" = "black",
+      "FULL" = "royalblue"
+      ),
+    name = "Setup"
+    ) +
+  scale_fill_manual(
+    values = c(
+      "BRC" = "black",
+      "FULL" = "royalblue"
+      ),
+    name = "Setup") +
+  ylim(-1.2, 2.2) + 
+  xlim(-20, 105) +
+  scale_x_continuous(
+    expand = c(0,0)
+    ) +
+  scale_y_continuous(
+    expand = c(0,0)
+    ) +
+  labs(
+    x = "Days after drought onset",
+    y = expression( paste( "Bias (J m"^{-2}, " d"^{-1}, ")")) 
+    ) +
+  theme_classic()
+```
+
+```{r message = FALSE, warning = FALSE, echo = FALSE}
+df_dday_agg_2m <- eval_droughtresponse( 
+  df = out_eval_2m$le$fluxnet$data$ddf %>%
+    rename(
+      site = sitename
+      ), 
+  df_flue = df_flue,
+  before=20,
+  after=105,
+  leng_threshold = 10, 
+  nbins=10, 
+  do_norm=TRUE
+  )
+
+df_dday_agg_2m %>% 
+  ggplot() +
+  geom_hline(
+    yintercept = 0,
+    color = "black",
+    linetype = "dotted"
+    ) +
+  geom_vline(
+    xintercept = 0,
+    color = "black",
+    linetype = "dotted"
+    ) +
+  geom_line(
+    aes(
+      x = dday,
+      y = median
+      ),
+    size = 0.9) +
+  geom_ribbon(
+    aes(
+      x = dday,
+      ymin = q33,
+      ymax = q66
+      ), 
+    alpha = 0.3) +
+  scale_color_manual(
+    values = c(
+      "BRC" = "black",
+      "FULL" = "royalblue"
+      ),
+    name = "Setup"
+    ) +
+  scale_fill_manual(
+    values = c(
+      "BRC" = "black",
+      "FULL" = "royalblue"
+      ),
+    name = "Setup") +
+  ylim(-1.2, 2.2) + 
+  xlim(-20, 105) +
+  scale_x_continuous(
+    expand = c(0,0)
+    ) +
+  scale_y_continuous(
+    expand = c(0,0)
+    ) +
+  labs(
+    x = "Days after drought onset",
+    y = expression( paste( "Bias (J m"^{-2}, " d"^{-1}, ")")) 
+    ) +
+  theme_classic()
+```
+
+
+# 1.2 P model coulped with Gs-ET
+
+# Model run
+
+```{r warning = FALSE, message = FALSE}
+
+output <- NULL
+output_2m <- NULL
+
+for(i in 1:dim(driver[1])){
+  
+  driver$params_siml[[i]]$use_gs = TRUE
+  driver_2m$params_siml[[i]]$use_gs = TRUE
+  
+   params_modl <- list(
+    kphio              = 0.04998,    # setup ORG in Stocker et al. 2020 GMD
+    kphio_par_a        = 0.0,     
+    kphio_par_b        = 1.0,
+    soilm_thetastar    = 0.6 * 240,  # to recover old setup with soil moisture stress
+    soilm_betao        = 0.0,
+    beta_unitcostratio = 146.0,
+    rd_to_vcmax        = 0.014,      # value from Atkin et al. 2015 for C3 herbaceous
+    tau_acclim         = 30.0,
+    kc_jmax            = 0.41,
+    whc                = driver$site_info[[i]]$whc
+  )
+  
+  
+ tmp <- rsofun::runread_pmodel_f(
+  driver[i,],
+  par = params_modl
+ )
+  
+  params_modl <- list(
+    kphio              = 0.04998,    # setup ORG in Stocker et al. 2020 GMD
+    kphio_par_a        = 0.0,     
+    kphio_par_b        = 1.0,
+    soilm_thetastar    = 0.6 * 240,  # to recover old setup with soil moisture stress
+    soilm_betao        = 0.0,
+    beta_unitcostratio = 146.0,
+    rd_to_vcmax        = 0.014,      # value from Atkin et al. 2015 for C3 herbaceous
+    tau_acclim         = 30.0,
+    kc_jmax            = 0.41,
+    whc                = driver_2m$site_info[[i]]$whc
+  )
+  
+  tmp_2m <- rsofun::runread_pmodel_f(
+  driver_2m[i,],
+  par = params_modl
+ )
+  
+  output <- rbind(output,tmp)
+  output_2m <- rbind(output_2m,tmp_2m)
+
+}
+
+output <- output |>
+  mutate(len = purrr::map_int(data, ~nrow(.))) |>
+  filter(len != 1) |>
+  select(-len)
+
+output_2m <- output_2m |>
+  mutate(len = purrr::map_int(data, ~nrow(.))) |>
+  filter(len != 1) |>
+  select(-len)
+```
+
+# Run evaluation
+
+```{r error=FALSE, message=FALSE, warning=FALSE, include=}
+evalsites <- output %>%
+  mutate(ntsteps = purrr::map_dbl(data, ~nrow(.))) %>%
+  dplyr::filter(ntsteps > 0) %>%
+  pull(sitename)
+
+settings_eval <- list(
+  benchmark = list(le = c("fluxnet") ),
+  sitenames = evalsites,
+  agg       = 8
+)
+
+##  Evaluate model 
+out_eval <- eval_sofun(
+  output,
+  settings_eval,
+  obs_eval = obs_eval,
+  overwrite = TRUE,
+  light = FALSE
+)
+
+
+##  Evaluate model 
+out_eval_2m <- eval_sofun(
+  output_2m,
+  settings_eval,
+  obs_eval = obs_eval,
+  overwrite = TRUE,
+  light = FALSE
+)
+
+```
+
+# Results
+
+```{r warning=FALSE, message=FALSE, error=FALSE, echo = FALSE}
+out_eval$le$fluxnet$metrics %>% 
+  bind_rows(.id = "Level") %>% 
+  kable(caption  ="results from spatially vary WHC")
+```
+
+```{r  warning=FALSE, message=FALSE, error=FALSE, echo = FALSE}
+out_eval_2m$le$fluxnet$metrics %>% 
+  bind_rows(.id = "Level") %>% 
+  kable(caption  ="results from constant WHC")
+```
+
+
+
+## 8-daily, spatial and annual
+
+```{r message = FALSE, warning = FALSE, echo = FALSE}
+out_eval$le$fluxnet$plot$gg_modobs_xdaily
+max(out_eval$le$fluxnet$data$xdf$obs,na.rm = TRUE)
+out_eval$le$fluxnet$plot$gg_modobs_spatial_annual
+```
+
+
+```{r message = FALSE, warning = FALSE, echo = FALSE}
+out_eval_2m$le$fluxnet$plot$gg_modobs_xdaily
+out_eval_2m$le$fluxnet$plot$gg_modobs_spatial_annual
+```
+
+
+## Mean seasonal cycle
+
+```{r message = FALSE, warning = FALSE, echo = FALSE}
+out_eval$le$fluxnet$data$meandoydf_byclim %>% 
+  dplyr::filter(climatezone %in% c(
+    "Aw south", "BSk north", "Cfa north",
+    "Cfb north", "Cfb south", "Csa north",
+    "Csb north", "Dfb north", "Dfc north")
+    ) %>%
+  dplyr::filter(koeppen_code != "-") %>% 
+  pivot_longer(
+    c(obs_mean, mod_mean),
+    names_to = "source",
+    values_to = "le"
+    ) %>% 
+  ggplot() +
+  geom_ribbon(
+    aes(x = doy, ymin = obs_min, ymax = obs_max), 
+    fill = "black", 
+    alpha = 0.2
+    ) +
+  geom_line(aes(x = doy, y = le, color = source), size = 0.4) +
+  labs(y = expression( paste("Simulated le (J m"^-2, " d"^-1, ")" ) ), 
+       x = "DOY") +
+  ggtitle("variable WHC") +
+  facet_wrap( ~climatezone ) +
+  theme_gray() +
+  theme(legend.position = "bottom") +
+  scale_color_manual(
+    name="Setup: ",
+    values=c("red", "black")
+    )
+```
+
+```{r message = FALSE, warning = FALSE, echo = FALSE}
+out_eval_2m$le$fluxnet$data$meandoydf_byclim %>% 
+  dplyr::filter(climatezone %in% c(
+    "Aw south", "BSk north", "Cfa north",
+    "Cfb north", "Cfb south", "Csa north",
+    "Csb north", "Dfb north", "Dfc north")
+    ) %>%
+  dplyr::filter(koeppen_code != "-") %>% 
+  pivot_longer(
+    c(obs_mean, mod_mean),
+    names_to = "source",
+    values_to = "le"
+    ) %>% 
+  ggplot() +
+  geom_ribbon(
+    aes(x = doy, ymin = obs_min, ymax = obs_max), 
+    fill = "black", 
+    alpha = 0.2
+    ) +
+  geom_line(aes(x = doy, y = le, color = source), size = 0.4) +
+  labs(y = expression( paste("Simulated le (J m"^-2, " d"^-1, ")" ) ), 
+       x = "DOY") +
+    ggtitle("constant WHC") +
+  facet_wrap( ~climatezone ) +
+  theme_gray() +
+  theme(legend.position = "bottom") +
+  scale_color_manual(
+    name="Setup: ",
+    values=c("red", "black")
+    )
+```
+
+
+
+
+## Drought response
+
+```{r message = FALSE, warning = FALSE, echo = FALSE}
+df_dday_agg <- eval_droughtresponse( 
+  df = out_eval$le$fluxnet$data$ddf %>%
+    rename(
+      site = sitename
+      ), 
+  df_flue = df_flue,
+  before=20,
+  after=105,
+  leng_threshold = 10, 
+  nbins=10, 
+  do_norm=TRUE
+  )
+
+df_dday_agg %>% 
+  ggplot() +
+  geom_hline(
+    yintercept = 0,
+    color = "black",
+    linetype = "dotted"
+    ) +
+  geom_vline(
+    xintercept = 0,
+    color = "black",
+    linetype = "dotted"
+    ) +
+  geom_line(
+    aes(
+      x = dday,
+      y = median
+      ),
+    size = 0.9) +
+  geom_ribbon(
+    aes(
+      x = dday,
+      ymin = q33,
+      ymax = q66
+      ), 
+    alpha = 0.3) +
+  scale_color_manual(
+    values = c(
+      "BRC" = "black",
+      "FULL" = "royalblue"
+      ),
+    name = "Setup"
+    ) +
+  scale_fill_manual(
+    values = c(
+      "BRC" = "black",
+      "FULL" = "royalblue"
+      ),
+    name = "Setup") +
+  ylim(-1.2, 2.2) + 
+  xlim(-20, 105) +
+  scale_x_continuous(
+    expand = c(0,0)
+    ) +
+  scale_y_continuous(
+    expand = c(0,0)
+    ) +
+  labs(
+    x = "Days after drought onset",
+    y = expression( paste( "Bias (J m"^{-2}, " d"^{-1}, ")")) 
+    ) +
+  theme_classic()
+```
+
+```{r message = FALSE, warning = FALSE, echo = FALSE}
+df_dday_agg_2m <- eval_droughtresponse( 
+  df = out_eval_2m$le$fluxnet$data$ddf %>%
+    rename(
+      site = sitename
+      ), 
+  df_flue = df_flue,
+  before=20,
+  after=105,
+  leng_threshold = 10, 
+  nbins=10, 
+  do_norm=TRUE
+  )
+
+df_dday_agg_2m %>% 
+  ggplot() +
+  geom_hline(
+    yintercept = 0,
+    color = "black",
+    linetype = "dotted"
+    ) +
+  geom_vline(
+    xintercept = 0,
+    color = "black",
+    linetype = "dotted"
+    ) +
+  geom_line(
+    aes(
+      x = dday,
+      y = median
+      ),
+    size = 0.9) +
+  geom_ribbon(
+    aes(
+      x = dday,
+      ymin = q33,
+      ymax = q66
+      ), 
+    alpha = 0.3) +
+  scale_color_manual(
+    values = c(
+      "BRC" = "black",
+      "FULL" = "royalblue"
+      ),
+    name = "Setup"
+    ) +
+  scale_fill_manual(
+    values = c(
+      "BRC" = "black",
+      "FULL" = "royalblue"
+      ),
+    name = "Setup") +
+  ylim(-1.2, 2.2) + 
+  xlim(-20, 105) +
+  scale_x_continuous(
+    expand = c(0,0)
+    ) +
+  scale_y_continuous(
+    expand = c(0,0)
+    ) +
+  labs(
+    x = "Days after drought onset",
+    y = expression( paste( "Bias (J m"^{-2}, " d"^{-1}, ")")) 
+    ) +
+  theme_classic()
+```
+
+# 1.3 P model with PML ET
+
+# Model run
+
+```{r warning = FALSE, message = FALSE}
+
+output <- NULL
+output_2m <- NULL
+
+for(i in 1:dim(driver[1])){
+  
+  driver$params_siml[[i]]$use_gs <- TRUE
+  driver$params_siml[[i]]$use_pml <- TRUE
+  driver$params_siml[[i]]$use_phydro <- FALSE
+
+  driver_2m$params_siml[[i]]$use_gs <- TRUE
+  driver_2m$params_siml[[i]]$use_pml <- TRUE
+  driver_2m$params_siml[[i]]$use_phydro <- FALSE
+  
+  driver$site_info[[i]]$canopy_height <- fdk_site_info$canopy_height[i]
+  driver_2m$site_info[[i]]$canopy_height <- fdk_site_info$canopy_height[i]
+  
+  driver$site_info[[i]]$reference_height <- fdk_site_info$reference_height[i]
+  driver_2m$site_info[[i]]$reference_height <- fdk_site_info$reference_height[i]
+
+
+  params_modl <- list(
+    kphio              = 0.04998,    # setup ORG in Stocker et al. 2020 GMD
+    kphio_par_a        = 0.0,     
+    kphio_par_b        = 1.0,
+    soilm_thetastar    = 0.6 * 240,  # to recover old setup with soil moisture stress
+    soilm_betao        = 0.0,
+    beta_unitcostratio = 146.0,
+    rd_to_vcmax        = 0.014,      # value from Atkin et al. 2015 for C3 herbaceous
+    tau_acclim         = 30.0,
+    kc_jmax            = 0.41,
+    whc                = driver$site_info[[i]]$whc
+  )
+  
+  
+ tmp <- rsofun::runread_pmodel_f(
+  driver[i,],
+  par = params_modl
+ )
+  
+  params_modl <- list(
+    kphio              = 0.04998,    # setup ORG in Stocker et al. 2020 GMD
+    kphio_par_a        = 0.0,     
+    kphio_par_b        = 1.0,
+    soilm_thetastar    = 0.6 * 240,  # to recover old setup with soil moisture stress
+    soilm_betao        = 0.0,
+    beta_unitcostratio = 146.0,
+    rd_to_vcmax        = 0.014,      # value from Atkin et al. 2015 for C3 herbaceous
+    tau_acclim         = 30.0,
+    kc_jmax            = 0.41,  
+    whc                =  driver_2m$site_info[[i]]$whc
+  )
+  
+  tmp_2m <- rsofun::runread_pmodel_f(
+  driver_2m[i,],
+  par = params_modl
+ )
+  
+  output <- rbind(output,tmp)
+  output_2m <- rbind(output_2m,tmp_2m)
+  
+}
+
+output <- output |>
+  mutate(len = purrr::map_int(data, ~nrow(.))) |>
+  filter(len != 1) |>
+  select(-len)
+
+output_2m <- output_2m |>
+  mutate(len = purrr::map_int(data, ~nrow(.))) |>
+  filter(len != 1) |>
+  select(-len)
+```
+
+# Run evaluation
+
+```{r error=FALSE, message=FALSE, warning=FALSE, include=}
+evalsites <- output %>%
+  mutate(ntsteps = purrr::map_dbl(data, ~nrow(.))) %>%
+  dplyr::filter(ntsteps > 0) %>%
+  pull(sitename)
+
+settings_eval <- list(
+  benchmark = list(le = c("fluxnet") ),
+  sitenames = evalsites,
+  agg       = 8
+)
+
+##  Evaluate model 
+out_eval <- eval_sofun(
+  output,
+  settings_eval,
+  obs_eval = obs_eval,
+  overwrite = TRUE,
+  light = FALSE
+)
+
+
+evalsites_2m <- output_2m %>%
+  mutate(ntsteps = purrr::map_dbl(data, ~nrow(.))) %>%
+  dplyr::filter(ntsteps > 0) %>%
+  pull(sitename)
+
+##  Evaluate model 
+out_eval_2m <- eval_sofun(
+  output_2m,
+  settings_eval,
+  obs_eval = obs_eval,
+  overwrite = TRUE,
+  light = FALSE
+)
+
+```
+
+# Results
+
+```{r warning=FALSE, message=FALSE, error=FALSE, echo = FALSE}
+out_eval$le$fluxnet$metrics %>% 
+  bind_rows(.id = "Level") %>% 
+  kable(caption  ="results from spatially vary WHC")
+```
+
+```{r  warning=FALSE, message=FALSE, error=FALSE, echo = FALSE}
+out_eval_2m$le$fluxnet$metrics %>% 
+  bind_rows(.id = "Level") %>% 
+  kable(caption  ="results from constant WHC")
+```
+
+
+
+## 8-daily, spatial and annual
+
+```{r message = FALSE, warning = FALSE, echo = FALSE}
+out_eval$le$fluxnet$plot$gg_modobs_xdaily
+out_eval$le$fluxnet$plot$gg_modobs_spatial_annual
+```
+
+
+```{r message = FALSE, warning = FALSE, echo = FALSE}
+out_eval_2m$le$fluxnet$plot$gg_modobs_xdaily
+max(out_eval$le$fluxnet$data$xdf$obs,na.rm = TRUE)
+out_eval_2m$le$fluxnet$plot$gg_modobs_spatial_annual
+```
+
+
+## Mean seasonal cycle
+
+```{r message = FALSE, warning = FALSE, echo = FALSE}
+out_eval$le$fluxnet$data$meandoydf_byclim %>% 
+  dplyr::filter(climatezone %in% c(
+    "Aw south", "BSk north", "Cfa north",
+    "Cfb north", "Cfb south", "Csa north",
+    "Csb north", "Dfb north", "Dfc north")
+    ) %>%
+  dplyr::filter(koeppen_code != "-") %>% 
+  pivot_longer(
+    c(obs_mean, mod_mean),
+    names_to = "source",
+    values_to = "le"
+    ) %>% 
+  ggplot() +
+  geom_ribbon(
+    aes(x = doy, ymin = obs_min, ymax = obs_max), 
+    fill = "black", 
+    alpha = 0.2
+    ) +
+  geom_line(aes(x = doy, y = le, color = source), size = 0.4) +
+  labs(y = expression( paste("Simulated le (J m"^-2, " d"^-1, ")" ) ), 
+       x = "DOY") +
+  ggtitle("variable WHC") +
+  facet_wrap( ~climatezone ) +
+  theme_gray() +
+  theme(legend.position = "bottom") +
+  scale_color_manual(
+    name="Setup: ",
+    values=c("red", "black")
+    )
+```
+
+```{r message = FALSE, warning = FALSE, echo = FALSE}
+out_eval_2m$le$fluxnet$data$meandoydf_byclim %>% 
+  dplyr::filter(climatezone %in% c(
+    "Aw south", "BSk north", "Cfa north",
+    "Cfb north", "Cfb south", "Csa north",
+    "Csb north", "Dfb north", "Dfc north")
+    ) %>%
+  dplyr::filter(koeppen_code != "-") %>% 
+  pivot_longer(
+    c(obs_mean, mod_mean),
+    names_to = "source",
+    values_to = "le"
+    ) %>% 
+  ggplot() +
+  geom_ribbon(
+    aes(x = doy, ymin = obs_min, ymax = obs_max), 
+    fill = "black", 
+    alpha = 0.2
+    ) +
+  geom_line(aes(x = doy, y = le, color = source), size = 0.4) +
+  labs(y = expression( paste("Simulated le (J m"^-2, " d"^-1, ")" ) ), 
+       x = "DOY") +
+    ggtitle("constant WHC") +
+  facet_wrap( ~climatezone ) +
+  theme_gray() +
+  theme(legend.position = "bottom") +
+  scale_color_manual(
+    name="Setup: ",
+    values=c("red", "black")
+    )
+```
+
+
+
+
+## Drought response
+
+```{r message = FALSE, warning = FALSE, echo = FALSE}
+df_dday_agg <- eval_droughtresponse( 
+  df = out_eval$le$fluxnet$data$ddf %>%
+    rename(
+      site = sitename
+      ), 
+  df_flue = df_flue,
+  before=20,
+  after=105,
+  leng_threshold = 10, 
+  nbins=10, 
+  do_norm=TRUE
+  )
+
+df_dday_agg %>% 
+  ggplot() +
+  geom_hline(
+    yintercept = 0,
+    color = "black",
+    linetype = "dotted"
+    ) +
+  geom_vline(
+    xintercept = 0,
+    color = "black",
+    linetype = "dotted"
+    ) +
+  geom_line(
+    aes(
+      x = dday,
+      y = median
+      ),
+    size = 0.9) +
+  geom_ribbon(
+    aes(
+      x = dday,
+      ymin = q33,
+      ymax = q66
+      ), 
+    alpha = 0.3) +
+  scale_color_manual(
+    values = c(
+      "BRC" = "black",
+      "FULL" = "royalblue"
+      ),
+    name = "Setup"
+    ) +
+  scale_fill_manual(
+    values = c(
+      "BRC" = "black",
+      "FULL" = "royalblue"
+      ),
+    name = "Setup") +
+  ylim(-1.2, 2.2) + 
+  xlim(-20, 105) +
+  scale_x_continuous(
+    expand = c(0,0)
+    ) +
+  scale_y_continuous(
+    expand = c(0,0)
+    ) +
+  labs(
+    x = "Days after drought onset",
+    y = expression( paste( "Bias (J m"^{-2}, " d"^{-1}, ")")) 
+    ) +
+  theme_classic()
+```
+
+```{r message = FALSE, warning = FALSE, echo = FALSE}
+df_dday_agg_2m <- eval_droughtresponse( 
+  df = out_eval_2m$le$fluxnet$data$ddf %>%
+    rename(
+      site = sitename
+      ), 
+  df_flue = df_flue,
+  before=20,
+  after=105,
+  leng_threshold = 10, 
+  nbins=10, 
+  do_norm=TRUE
+  )
+
+df_dday_agg_2m %>% 
+  ggplot() +
+  geom_hline(
+    yintercept = 0,
+    color = "black",
+    linetype = "dotted"
+    ) +
+  geom_vline(
+    xintercept = 0,
+    color = "black",
+    linetype = "dotted"
+    ) +
+  geom_line(
+    aes(
+      x = dday,
+      y = median
+      ),
+    size = 0.9) +
+  geom_ribbon(
+    aes(
+      x = dday,
+      ymin = q33,
+      ymax = q66
+      ), 
+    alpha = 0.3) +
+  scale_color_manual(
+    values = c(
+      "BRC" = "black",
+      "FULL" = "royalblue"
+      ),
+    name = "Setup"
+    ) +
+  scale_fill_manual(
+    values = c(
+      "BRC" = "black",
+      "FULL" = "royalblue"
+      ),
+    name = "Setup") +
+  ylim(-1.2, 2.2) + 
+  xlim(-20, 105) +
+  scale_x_continuous(
+    expand = c(0,0)
+    ) +
+  scale_y_continuous(
+    expand = c(0,0)
+    ) +
+  labs(
+    x = "Days after drought onset",
+    y = expression( paste( "Bias (J m"^{-2}, " d"^{-1}, ")")) 
+    ) +
+  theme_classic()
+```
