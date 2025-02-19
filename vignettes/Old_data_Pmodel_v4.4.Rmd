@@ -1,0 +1,296 @@
+
+
+```{r setup, include = FALSE}
+# Install packages
+if ("rsofun" %in% installed.packages()) remove.packages("rsofun")
+devtools::install_github(
+  "geco-bern/rsofun",
+  ref = "HEAD",
+  upgrade = "never",
+  force = TRUE
+  )
+
+packageVersion("rsofun")
+
+
+# Load packages
+library(rsofun)
+library(dplyr)
+library(tidyr)
+library(readr)
+library(ggplot2)
+library(lubridate)
+library(knitr)
+library(ggthemes)
+library(here)
+
+# Load functions
+source("../R/eval_sofun.R")
+source("../R/get_stats.R")
+source("../R/analyse_modobs2.R")
+source(here("R/align_events.R"))
+source(here("R/eval_droughtresponse.R"))
+source(here("R/heatscatter_dependencies.R"))
+
+# Set seed
+set.seed(42)
+
+# only select the sites from the New Phytologist paper
+# load site list and filter on these (see below)
+flue_sites <- readr::read_csv(here::here("data/flue_stocker18nphyt.csv")) %>%
+  dplyr::filter( !is.na(cluster) ) %>%
+  distinct(site) %>%
+  pull(site)
+
+# model forcing data
+load(here("data/df_drivers_fluxnet2015.Rdata"))
+
+df_drivers_fluxnet2015 <- df_drivers_fluxnet2015 %>%
+  dplyr::select(sitename, forcing) %>%
+  unnest(forcing) %>%
+  dplyr::filter(!(month(date)==2 & mday(date)==29)) %>%
+
+  ## model requires flux per seconds now
+  mutate(prec = prec / (60*60*24), ppfd = ppfd / (60*60*24)) %>%
+
+  ## assuming all precipitation in liquid form
+  mutate(rainf = prec, snowf = 0) %>%
+
+  ## required for new version, but not used because
+  mutate(tmin = temp, tmax = temp) %>%
+
+  group_by(sitename) %>%
+  nest() %>%
+  rename(forcing = data) %>%
+  right_join(
+    df_drivers_fluxnet2015 %>%
+      dplyr::select(-forcing),
+    by = "sitename"
+  ) %>%
+  ungroup() %>%
+  rename(site_info = siteinfo, params_soil = df_soiltexture)
+
+# site selection: good-quality sites from analysis of Stocker et al. (2018) New Phyt.
+flue_sites <- readr::read_csv(here("data/flue_stocker18nphyt.csv")) %>%
+  dplyr::filter( !is.na(cluster) ) %>%
+  distinct(site) %>%
+  pull(site)
+
+
+ddf_fluxnet_gpp <- readr::read_rds(here("data/ddf_fluxnet_gpp_v4.2.rds"))
+
+# observational data for evaluation
+obs_eval <- readRDS(here("data","correct_2015_eval_data.rds"))
+
+# site meta info
+siteinfo_fluxnet2015 <- df_drivers_fluxnet2015 |>
+  select(sitename, site_info) |>
+  unnest(site_info)
+
+# calibration sites
+calibsites <- siteinfo_fluxnet2015 %>%
+  dplyr::filter(!(sitename %in% c("DE-Akm", "IT-Ro1"))) %>%  # excluded because fapar data could not be downloaded (WEIRD)
+  # dplyr::filter(!(sitename %in% c("AU-Wom"))) %>%  # excluded because no GPP data was found in FLUXNET file
+  dplyr::filter(sitename != "FI-Sod") %>%  # excluded because some temperature data is missing
+  dplyr::filter( c4 %in% c(FALSE, NA) & classid != "CRO" & classid != "WET" ) %>%
+  dplyr::filter( sitename %in% flue_sites ) %>%
+  pull(sitename)
+
+# Calibrate model
+siteinfo_fluxnet2015 <- df_drivers_fluxnet2015 |> 
+  select(sitename, site_info) |> 
+  unnest(site_info)
+
+```
+
+# Model parameters
+
+Model parameters are determined for this version from calibration. The code for model calibration is not shown. See `vignettes/0_p-model_current_run.Rmd` for the code.
+
+```{r}
+par_calib <-  read_rds(here("data","calibration_old_data.rds"))
+
+params_modl <- list(
+    kphio              = par_calib$par[["kphio"]], 
+    kphio_par_a        = par_calib$par[["kphio_par_a"]],       
+    kphio_par_b        = par_calib$par[["kphio_par_b"]],
+    soilm_thetastar    = par_calib$par[["soilm_thetastar"]],
+    soilm_betao        = 0.0,
+    beta_unitcostratio = 146.0,
+    rd_to_vcmax        = 0.014,      # value from Atkin et al. 2015 for C3 herbaceous
+    tau_acclim         = 30.0,
+    kc_jmax            = 0.41
+  )
+```
+
+# Model run
+
+```{r warning = FALSE, message = FALSE}
+output <- rsofun::runread_pmodel_f(
+  df_drivers_fluxnet2015 |>
+    dplyr::mutate(
+      forcing = purrr::map(
+        forcing,
+        ~rename(., rain = rainf, snow = snowf))
+      ) |>
+    dplyr::mutate(
+      forcing = purrr::map(
+        forcing,
+        ~mutate(., netrad = 0))
+    ),
+  par = params_modl
+)
+
+output <- output |>
+  mutate(len = purrr::map_int(data, ~nrow(.))) |>
+  filter(len != 1) |>
+  select(-len)
+```
+
+# Run evaluation
+
+This runs the `eval_sofun()` routine included in the sofunCalVal package, and outputs daily, monthly and annual summary statistics comparing observed with simulated values. We'll retake this same routine when running on the latest release (i.e. the workflow is equivalent but for the release of the `rsofun` package)
+
+```{r warning=FALSE, message=FALSE, error=FALSE, include = FALSE}
+evalsites <- output %>%
+  mutate(ntsteps = purrr::map_dbl(data, ~nrow(.))) %>%
+  dplyr::filter(ntsteps > 0) %>%
+  pull(sitename)
+
+settings_eval <- list(
+  benchmark = list( gpp = c("fluxnet") ),
+  sitenames = evalsites,
+  agg       = 8
+)
+
+##  Evaluate model ----
+out_eval <- eval_sofun(
+  output,
+  settings_eval,
+  obs_eval = obs_eval,
+  overwrite = TRUE,
+  light = FALSE
+)
+```
+
+# Results
+
+```{r warning=FALSE, message=FALSE, error=FALSE, echo = FALSE}
+out_eval$gpp$fluxnet$metrics %>% 
+  bind_rows(.id = "Level") %>% 
+  kable()
+```
+
+## 8-daily, spatial and annual
+
+```{r message = FALSE, warning = FALSE, echo = FALSE}
+out_eval$gpp$fluxnet$plot$gg_modobs_xdaily
+out_eval$gpp$fluxnet$plot$gg_modobs_spatial_annual
+```
+
+## Mean seasonal cycle
+
+```{r message = FALSE, warning = FALSE, echo = FALSE}
+out_eval$gpp$fluxnet$data$meandoydf_byclim %>% 
+  dplyr::filter(climatezone %in% c(
+    "Aw south", "BSk north", "Cfa north",
+    "Cfb north", "Cfb south", "Csa north",
+    "Csb north", "Dfb north", "Dfc north")
+    ) %>%
+  dplyr::filter(koeppen_code != "-") %>% 
+  pivot_longer(
+    c(obs_mean, mod_mean),
+    names_to = "source",
+    values_to = "gpp"
+    ) %>% 
+  ggplot() +
+  geom_ribbon(
+    aes(x = doy, ymin = obs_min, ymax = obs_max), 
+    fill = "black", 
+    alpha = 0.2
+    ) +
+  geom_line(aes(x = doy, y = gpp, color = source), size = 0.4) +
+  labs(y = expression( paste("Simulated GPP (g C m"^-2, " d"^-1, ")" ) ), 
+       x = "DOY") +
+  facet_wrap( ~climatezone ) +
+  theme_gray() +
+  theme(legend.position = "bottom") +
+  scale_color_manual(
+    name="Setup: ",
+    values=c("red", "black")
+    )
+```
+
+## Drought response
+
+```{r message = FALSE, warning = FALSE, echo = FALSE}
+
+df_dday_agg <- eval_droughtresponse( 
+  df = out_eval$gpp$fluxnet$data$ddf %>%
+    rename(
+      site = sitename
+      ), 
+  df_flue = readr::read_csv(here::here("data/flue_stocker18nphyt.csv")),
+  before=20,
+  after=105,
+  leng_threshold = 10, 
+  nbins=10, 
+  do_norm=TRUE
+  )
+
+df_dday_agg %>% 
+  ggplot() +
+  geom_hline(
+    yintercept = 0,
+    color = "black",
+    linetype = "dotted"
+    ) +
+  geom_vline(
+    xintercept = 0,
+    color = "black",
+    linetype = "dotted"
+    ) +
+  geom_line(
+    aes(
+      x = dday,
+      y = median
+      ),
+    size = 0.9) +
+  geom_ribbon(
+    aes(
+      x = dday,
+      ymin = q33,
+      ymax = q66
+      ), 
+    alpha = 0.3) +
+  scale_color_manual(
+    values = c(
+      "BRC" = "black",
+      "FULL" = "royalblue"
+      ),
+    name = "Setup"
+    ) +
+  scale_fill_manual(
+    values = c(
+      "BRC" = "black",
+      "FULL" = "royalblue"
+      ),
+    name = "Setup") +
+  ylim(-1.2, 2.2) + 
+  xlim(-20, 105) +
+  scale_x_continuous(
+    expand = c(0,0)
+    ) +
+  scale_y_continuous(
+    expand = c(0,0)
+    ) +
+  labs(
+    x = "Days after drought onset",
+    y = expression( paste( "Bias (g C m"^{-1}, " d"^{-1}, ")")) 
+    ) +
+  theme_classic()
+```
+
+```{r}
+sessionInfo()
+```
