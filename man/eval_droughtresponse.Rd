@@ -6,7 +6,7 @@
 \usage{
 eval_droughtresponse(
   df,
-  path_flue,
+  df_flue,
   before,
   after,
   leng_threshold,

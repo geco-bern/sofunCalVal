@@ -4,7 +4,7 @@ library(tidyverse)
 library(FluxDataKit)
 
 # Read rsofun driver data
-p_model_fluxnet_drivers <- read_rds("/data_2/FluxDataKit/v3.4/zenodo_upload/rsofun_driver_data_v3.4.2.rds")
+p_model_fluxnet_drivers <- read_rds("~/data_2/FluxDataKit/v3.4/zenodo_upload/rsofun_driver_data_v3.4.2.rds")
 
 # Extract forcing time series
 ddf <- p_model_fluxnet_drivers |>
@@ -20,7 +20,7 @@ sites <- FluxDataKit::fdk_site_info |>
     FluxDataKit::fdk_site_fullyearsequence,
     by = "sitename"
   ) |>
-  dplyr::filter(!drop_gpp)
+  dplyr::filter(!drop_gpp & !drop_le)
 
 # filter data to retain only good quality sequences
 ddf <- ddf |>
@@ -28,13 +28,24 @@ ddf <- ddf |>
     sites |>
       dplyr::select(
         sitename,
-        year_start = year_start_gpp,
-        year_end = year_end_gpp),
+        year_start_gpp,
+        year_end_gpp,
+        year_start_le,
+        year_end_le
+        ),
     by = join_by(sitename)
   ) |>
   dplyr::mutate(year = year(date)) |>
-  dplyr::filter(year >= year_start & year <= year_end) |>
-  dplyr::select(-year_start, -year_end, -year)
+  dplyr::filter(
+    year >= year_start_gpp &
+    year >= year_start_le &
+    year <= year_end_gpp &
+    year <= year_end_le
+    ) |>
+  # For CH-Dav, retain only data pre-2010
+  dplyr::filter(!(sitename == "CH-Dav" & year >= 2010)) |>
+  dplyr::select(-year_start_gpp, -year_start_le, -year_end_gpp, -year_end_le, -year)
+
 
 # Re-create rsofun driver data with clean data
 drivers <- ddf |>
@@ -50,3 +61,4 @@ drivers <- ddf |>
   dplyr::ungroup()
 
 saveRDS(drivers, file = here::here("data/drivers.rds"))
+
