@@ -66,10 +66,10 @@ to calibrate parameters for five folds, split by site for spatial cross-validati
 par_calib <- readRDS(here::here("data/par_calib_fold_3.rds"))
 ```
 
-Some diagnostics.
-```{r}
-plot(par_calib$mod)
-```
+<!-- Some diagnostics. -->
+<!-- ```{r} -->
+<!-- plot(par_calib$mod) -->
+<!-- ``` -->
 
 ## Predict and test
 
@@ -100,6 +100,8 @@ output <- runread_pmodel_f(
 This runs the `eval_sofun()` routine included in the sofunCalVal package, and outputs daily, monthly and annual summary statistics comparing observed with simulated values. We'll retake this same routine when running on the latest release (i.e. the workflow is equivalent but for the release of the `rsofun` package)
 
 ```{r warning=FALSE, message=FALSE, error=FALSE, include = FALSE}
+obs_eval <- read_rds(here::here("data/obs_eval.rds"))
+
 evalsites <- output |>
   mutate(ntsteps = purrr::map_dbl(data, ~nrow(.))) |>
   dplyr::filter(ntsteps > 0) |>
