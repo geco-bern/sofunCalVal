@@ -16,6 +16,12 @@ drivers <- readRDS(here::here("data/drivers.rds"))
 par_calib <- calibrate_rsofun(drivers)
 
 # save parameters and model object to file
-filnam <- here::here(paste0("data/par_calib_single.rds"))
-message(paste0("Writing parameters to file ", filnam, "..."))
+filnam <- here::here(paste0("data/par_calib_current.rds"))
+message(paste0("Writing parameters plus trace to file ", filnam, "..."))
 saveRDS(par_calib, file = filnam)
+
+
+# light version: only parameters, not trace
+filnam <- here::here(paste0("data/par_calib_light_current.rds"))
+message(paste0("Writing parameters only to file ", filnam, "..."))
+saveRDS(par_calib$par, file = filnam)
