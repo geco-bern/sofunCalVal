@@ -62,7 +62,7 @@ source(here::here("analysis/rscript_calibrate_single.R"))
 to calibrate parameters for five folds, split by site for spatial cross-validation. This creates five files containing calibrated parameters and the {BayesianTools} model object returned from the MCMC. Read the files.
 ```{r}
 # source(here::here("analysis/01_submit_calibration_current_run.R"))
-par_calib <- readRDS(here::here("data/par_calib_fold_3.rds"))
+par_calib <- readRDS(here::here("data/par_calib_light_current.rds"))
 ```
 
 <!-- Some diagnostics. -->
@@ -85,7 +85,7 @@ par_fixed <- list(
   tau_acclim         = 20.0
 )
 
-par <- c(par_calib$par, par_fixed)
+par <- c(par_calib, par_fixed)
 
 output <- runread_pmodel_f(
   drivers = drivers,
