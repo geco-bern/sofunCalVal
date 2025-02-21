@@ -365,7 +365,6 @@ Since rsofun takes time series forcing, overwrite forcing with constant values c
 ### Setup ORG
 
 ```{r  message = FALSE, warning = FALSE, include = FALSE}
-library(rpmodel)
 out_pmodel <- rpmodel( 
   tc             = 20,           # temperature, deg C
   vpd            = 1000,         # Pa,
