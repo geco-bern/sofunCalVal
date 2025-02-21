@@ -42,7 +42,8 @@ Imports:
     knitr,
     jsonlite,
     httr,
-    rpmodel
+    rpmodel,
+    khroma
 LazyData: true
 ByteCompile: true
 RoxygenNote: 7.3.2
