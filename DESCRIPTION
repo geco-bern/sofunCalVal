@@ -1,6 +1,6 @@
 Package: sofunCalVal
 Type: Package
-Title: Calibrate and validate (r)SOFUN
+Title: Calibrate and validate rsofun
 Version: 1.0
 Authors@R: c(
             person(
@@ -40,17 +40,16 @@ Imports:
     stats,
     utils,
     knitr,
-    here,
     jsonlite,
-    httr
+    httr,
+    rpmodel,
+    khroma
 LazyData: true
 ByteCompile: true
-RoxygenNote: 7.3.1
+RoxygenNote: 7.3.2
 Suggests:
     rmarkdown,
     covr,
     testthat,
     here
 VignetteBuilder: knitr
-Remotes:
-    geco-bern/ingestr
