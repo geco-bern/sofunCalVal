@@ -8,7 +8,7 @@ vignette: >
   %\usepackage[utf8]{inputenc}
 ---
 
-This workflow runs the P-model with {rsofun} v4.2 and forcing as used in Stocker et al. (2020). Calibration and evaluation data is also as in Stocker et al. (2020). All data is from files created for Stocker et al. (2020). Results are almost identical as presented in Stocker et al. (2020). Slight deviations are related to the fact that rsofun v4.2 performs time series simulations with continuous acclimation - not for monthly means as done in Stocker et al. (2020). The workflow here provides an exact reproduction of code in [sofunBench for v4.2](https://github.com/geco-bern/sofunBench/tree/main/tag_v4.2).
+This workflow runs the P-model as implemented in {rsofun} for the reference version.
 
 ```{r setup, include = FALSE}
 # Install packages
@@ -18,8 +18,6 @@ devtools::install_github(
   upgrade = "never",
   force = TRUE
   )
-
-install.packages("rpmodel")
 
 # Load packages
 library(rpmodel)
@@ -34,182 +32,129 @@ library(ggthemes)
 library(here)
 
 # Load functions
-source("../R/eval_sofun.R")
-source("../R/get_stats.R")
-source("../R/analyse_modobs2.R")
-
-# Set seed
-set.seed(42)
-
-# model forcing data
-load(here("data/df_drivers_fluxnet2015.Rdata"))
-
-df_drivers_fluxnet2015 <- df_drivers_fluxnet2015 %>% 
-  dplyr::select(sitename, forcing) %>% 
-  unnest(forcing) %>% 
-  dplyr::filter(!(month(date)==2 & mday(date)==29)) %>% 
-  
-  ## model requires flux per seconds now
-  mutate(prec = prec / (60*60*24), ppfd = ppfd / (60*60*24)) %>% 
-  
-  ## assuming all precipitation in liquid form
-  mutate(rainf = prec, snowf = 0) %>% 
-
-  ## required for new version, but not used because   
-  mutate(tmin = temp, tmax = temp) %>% 
-
-  group_by(sitename) %>% 
-  nest() %>%
-  rename(forcing = data) %>% 
-  right_join(
-    df_drivers_fluxnet2015 %>% 
-      dplyr::select(-forcing),
-    by = "sitename"
-  ) %>% 
-  ungroup() %>% 
-  rename(site_info = siteinfo, params_soil = df_soiltexture)
+source(here::here("R/eval_sofun.R"))
+source(here::here("R/get_stats.R"))
+source(here::here("R/analyse_modobs2.R"))
+source(here::here("R/create_data_split.R"))
+source(here::here("R/calibrate_rsofun.R"))
+source(here::here("R/align_events.R"))
+source(here::here("R/eval_droughtresponse.R"))
 
 # site selection: good-quality sites from analysis of Stocker et al. (2018) New Phyt.
-flue_sites <- readr::read_csv(here("data/flue_stocker18nphyt.csv")) %>%
-  dplyr::filter( !is.na(cluster) ) %>%
-  distinct(site) %>%
-  pull(site)
+df_flue <- readr::read_csv(here("data/flue_stocker18nphyt.csv"))
 
-# observational data as calibration target
-# created from daily FLUXNE2015 data by:
-# - using GPP_NT_VUT_REF
-# - using QC>0.8
-ddf_fluxnet_gpp <- readr::read_rds(here("data/ddf_fluxnet_gpp_v4.2.rds"))
-
-# observational data for evaluation
-load(here("data/obs_eval_fluxnet2015.Rdata"))
-
-## Calibrate model
-siteinfo_fluxnet2015 <- df_drivers_fluxnet2015 |> 
-  select(sitename, site_info) |> 
-  unnest(site_info)
-
-calibsites <- siteinfo_fluxnet2015 %>% 
-  dplyr::filter(!(sitename %in% c("DE-Akm", "IT-Ro1"))) %>%  # excluded because fapar data could not be downloaded (WEIRD)
-  # dplyr::filter(!(sitename %in% c("AU-Wom"))) %>%  # excluded because no GPP data was found in FLUXNET file
-  dplyr::filter(sitename != "FI-Sod") %>%  # excluded because some temperature data is missing
-  dplyr::filter( c4 %in% c(FALSE, NA) & classid != "CRO" & classid != "WET" ) %>%
-  dplyr::filter( sitename %in% flue_sites ) %>%
-  pull(sitename)
-
-write_rds(calibsites, file = here("data/calibsites.rds"))
-
-settings_calib <- list(
-  method      = "gensa",
-  targetvars  = c("gpp"),
-  timescale   = list(targets_obs = "d"),
-  metric      = cost_rmse_fullstack,
-  dir_results = "./",
-  name        = "v4.2",
-  control = list(
-    max.call = 100,
-    trace.mat = TRUE
-  ),
-  par = list(
-    kphio = list( lower=0.03, upper=0.1, init= 0.05 ),
-    a = list( lower=0.0,  upper=1.0, init=0.0 ),
-    b = list( lower=0.0,  upper=1.5, init=0.6 )
-    )
-)
-
-# # THIS IS NOT RUN, RUN BEFOREHAND AND SPECIFY PARAMETERS BY HAND BELOW
-# set.seed(1982)
-# pars <- calib_sofun(
-#     drivers  = df_drivers_fluxnet2015 |> 
-#       dplyr::filter(sitename %in% calibsites) |> 
-#       dplyr::mutate(forcing = purrr::map(forcing, ~rename(., rain = rainf, snow = snowf))),
-#   obs      = ddf_fluxnet_gpp,
-#   settings = settings_calib
-#   )
-
+# Set seed
+set.seed(1982)
 ```
 
-# Model parameters
+## Calibrate
 
-Model parameters are determined for this version from calibration. The code for model calibration is not shown. See `vignettes/1_p-model_reference_run.Rmd` for the code.
+Before compiling this vignette, run 
+
+```{r, eval=FALSE} 
+# for multiple folds
+# source(here::here("analysis/01_submit_calibration_current_run.R"))
+
+# for single fold
+source(here::here("analysis/rscript_calibrate_single.R"))
+```
+
+to calibrate parameters for five folds, split by site for spatial cross-validation. This creates five files containing calibrated parameters and the {BayesianTools} model object returned from the MCMC. Read the files.
+```{r}
+# source(here::here("analysis/01_submit_calibration_current_run.R"))
+par_calib <- readRDS(here::here("data/par_calib_fold_3.rds"))
+```
+
+<!-- Some diagnostics. -->
+<!-- ```{r} -->
+<!-- plot(par_calib$mod) -->
+<!-- ``` -->
+
+## Predict and test
 
 ```{r}
-params_modl <- list(
-    kphio           = 0.09423773,  # pars$par[1],
-    soilm_par_a     = 0.33349283,  # pars$par[2],
-    soilm_par_b     = 1.45602286,  # pars$par[3],
-    tau_acclim_tempstress = 10,   # irrelevant - not calibrated
-    par_shape_tempstress  = 0.0   # irrelevant - not calibrated
-  )
+# load driver data for all sites
+drivers <- readRDS(here::here("data/drivers.rds"))
+
+# Combine fixed and calibrated model parameters
+# NOTE: this must be consistent with values specified in calibrate_rsofun().
+par_fixed <- list(
+  beta_unitcostratio = 146.0,
+  kc_jmax            = 0.41,
+  rd_to_vcmax        = 0.014,
+  tau_acclim         = 20.0
+)
+
+par <- c(par_calib$par, par_fixed)
+
+output <- runread_pmodel_f(
+  drivers = drivers,
+  par = par
+)
 ```
 
-# Model run
-
-```{r warning = FALSE, message = FALSE}
-output <- rsofun::runread_pmodel_f(
-  df_drivers_fluxnet2015 |> 
-      dplyr::mutate(forcing = purrr::map(forcing, ~rename(., rain = rainf, snow = snowf))),
-  par = params_modl
-  )
-```
 
 # Run evaluation
 
 This runs the `eval_sofun()` routine included in the sofunCalVal package, and outputs daily, monthly and annual summary statistics comparing observed with simulated values. We'll retake this same routine when running on the latest release (i.e. the workflow is equivalent but for the release of the `rsofun` package)
 
 ```{r warning=FALSE, message=FALSE, error=FALSE, include = FALSE}
-evalsites <- output %>% 
-  mutate(ntsteps = purrr::map_dbl(data, ~nrow(.))) %>% 
-  dplyr::filter(ntsteps > 0) %>% 
+obs_eval <- read_rds(here::here("data/obs_eval.rds"))
+
+evalsites <- output |>
+  mutate(ntsteps = purrr::map_dbl(data, ~nrow(.))) |>
+  dplyr::filter(ntsteps > 0) |>
   pull(sitename)
 
-write_rds(evalsites, file = here("data/evalsites.rds"))
-
 settings_eval <- list(
-  benchmark = list( gpp = c("fluxnet") ),
+  benchmark = list( gpp = c("fluxnet"), le = c("fluxnet") ),
   sitenames = evalsites,
   agg       = 8
-  )
+)
 
-out_eval <- eval_sofun( 
-  output, 
-  settings_eval, 
-  obs_eval = obs_eval, 
-  overwrite = TRUE, 
-  light = FALSE 
-  )
+##  Evaluate model ----
+out_eval <- eval_sofun(
+  output,
+  settings_eval,
+  obs_eval = obs_eval,
+  overwrite = TRUE,
+  light = FALSE
+)
 ```
 
-# Results
+## Results
+
+### GPP
 
 ```{r warning=FALSE, message=FALSE, error=FALSE, echo = FALSE}
-out_eval$gpp$fluxnet$metrics %>% 
-  bind_rows(.id = "Level") %>% 
+out_eval$gpp$fluxnet$metrics |> 
+  bind_rows(.id = "Level") |> 
   kable()
 ```
 
-## 8-daily, spatial and annual
+#### 8-daily, spatial and annual
 
 ```{r message = FALSE, warning = FALSE, echo = FALSE}
 out_eval$gpp$fluxnet$plot$gg_modobs_xdaily
 out_eval$gpp$fluxnet$plot$gg_modobs_spatial_annual
 ```
 
-## Mean seasonal cycle
+#### Mean seasonal cycle
 
 ```{r message = FALSE, warning = FALSE, echo = FALSE}
-out_eval$gpp$fluxnet$data$meandoydf_byclim %>% 
+out_eval$gpp$fluxnet$data$meandoydf_byclim |> 
   dplyr::filter(climatezone %in% c(
-    "Aw south", "BSk north", "Cfa north",
-    "Cfb north", "Cfb south", "Csa north",
-    "Csb north", "Dfb north", "Dfc north")
-    ) %>%
-  dplyr::filter(koeppen_code != "-") %>% 
+    "Aw south", "Am south", "BSk north", "Bsk north",
+    "Cfa north", "Cfb north", "Cfb south", 
+    "Csa north", "Csb north", "Dfb north",
+    "Dfc north", "ET north" )
+    ) |>
+  dplyr::filter(koeppen_code != "-") |> 
   pivot_longer(
     c(obs_mean, mod_mean),
     names_to = "source",
     values_to = "gpp"
-    ) %>% 
+    ) |> 
   ggplot() +
   geom_ribbon(
     aes(x = doy, ymin = obs_min, ymax = obs_max), 
@@ -223,23 +168,18 @@ out_eval$gpp$fluxnet$data$meandoydf_byclim %>%
   theme_gray() +
   theme(legend.position = "bottom") +
   scale_color_manual(
-    name = "Setup: ",
-    values = c("red", "black")
+    name="Setup: ",
+    values=c("red", "black")
     )
 ```
 
-## Drought response
+#### Drought response
 
 ```{r message = FALSE, warning = FALSE, echo = FALSE}
-source("../R/align_events.R")
-source("../R/eval_droughtresponse.R")
-
 df_dday_agg <- eval_droughtresponse( 
-  df = out_eval$gpp$fluxnet$data$ddf %>%
-    rename(
-      site = sitename
-      ), 
-  path_flue = here::here("data/flue_stocker18nphyt.csv"),
+  df = out_eval$gpp$fluxnet$data$ddf |> 
+    rename(site = sitename), 
+  df_flue,
   before = 20,
   after = 105,
   leng_threshold = 10, 
@@ -247,7 +187,7 @@ df_dday_agg <- eval_droughtresponse(
   do_norm = TRUE
   )
 
-df_dday_agg %>% 
+df_dday_agg |> 
   ggplot() +
   geom_hline(
     yintercept = 0,
@@ -297,12 +237,126 @@ df_dday_agg %>%
     x = "Days after drought onset",
     y = expression( paste( "Bias (g C m"^{-1}, " d"^{-1}, ")")) 
     ) +
-  theme_classic() +
-  theme(
-    panel.grid.major.y = element_line(),
-    panel.grid.major.x = element_line()
-  )
+  theme_classic()
 ```
+
+### LE
+
+```{r warning=FALSE, message=FALSE, error=FALSE, echo = FALSE}
+out_eval$le$fluxnet$metrics |> 
+  bind_rows(.id = "Level") |> 
+  kable()
+```
+
+#### 8-daily, spatial and annual
+
+```{r message = FALSE, warning = FALSE, echo = FALSE}
+out_eval$le$fluxnet$plot$gg_modobs_xdaily
+out_eval$le$fluxnet$plot$gg_modobs_spatial_annual
+```
+
+#### Mean seasonal cycle
+
+```{r message = FALSE, warning = FALSE, echo = FALSE}
+out_eval$le$fluxnet$data$meandoydf_byclim |> 
+  dplyr::filter(climatezone %in% c(
+    "Aw south", "Am south", "BSk north", "Bsk north",
+    "Cfa north", "Cfb north", "Cfb south", 
+    "Csa north", "Csb north", "Dfb north",
+    "Dfc north", "ET north" )
+    ) |>
+  dplyr::filter(koeppen_code != "-") |> 
+  pivot_longer(
+    c(obs_mean, mod_mean),
+    names_to = "source",
+    values_to = "le"
+    ) |> 
+  ggplot() +
+  geom_ribbon(
+    aes(x = doy, ymin = obs_min, ymax = obs_max), 
+    fill = "black", 
+    alpha = 0.2
+    ) +
+  geom_line(aes(x = doy, y = le, color = source), size = 0.4) +
+  labs(y = expression( paste("Simulated GPP (g C m"^-2, " d"^-1, ")" ) ), 
+       x = "DOY") +
+  facet_wrap( ~climatezone ) +
+  theme_gray() +
+  theme(legend.position = "bottom") +
+  scale_color_manual(
+    name="Setup: ",
+    values=c("royalblue", "black")
+    )
+```
+
+#### Drought response
+
+```{r message = FALSE, warning = FALSE, echo = FALSE}
+df_dday_agg <- eval_droughtresponse( 
+  df = out_eval$le$fluxnet$data$ddf |> 
+    rename(site = sitename), 
+  df_flue,
+  before = 20,
+  after = 105,
+  leng_threshold = 10, 
+  nbins = 10, 
+  do_norm = TRUE
+  )
+
+df_dday_agg |> 
+  ggplot() +
+  geom_hline(
+    yintercept = 0,
+    color = "black",
+    linetype = "dotted"
+    ) +
+  geom_vline(
+    xintercept = 0,
+    color = "black",
+    linetype = "dotted"
+    ) +
+  geom_line(
+    aes(
+      x = dday,
+      y = median
+      ),
+    size = 0.9) +
+  geom_ribbon(
+    aes(
+      x = dday,
+      ymin = q33,
+      ymax = q66
+      ), 
+    alpha = 0.3) +
+  scale_color_manual(
+    values = c(
+      "BRC" = "black",
+      "FULL" = "royalblue"
+      ),
+    name = "Setup"
+    ) +
+  scale_fill_manual(
+    values = c(
+      "BRC" = "black",
+      "FULL" = "royalblue"
+      ),
+    name = "Setup") +
+  ylim(-1.2, 2.2) + 
+  xlim(-20, 105) +
+  scale_x_continuous(
+    expand = c(0,0)
+    ) +
+  scale_y_continuous(
+    expand = c(0,0)
+    ) +
+  labs(
+    x = "Days after drought onset",
+    y = expression( paste( "Bias (g C m"^{-1}, " d"^{-1}, ")")) 
+    ) +
+  theme_classic()
+```
+
+
 
 ## Consistency with rpmodel
 
@@ -319,105 +373,52 @@ out_pmodel <- rpmodel(
   fapar          = 1,            # fraction  ,
   ppfd           = 30,           # mol/m2/d,
   elv            = 0,            # m.a.s.l.,
-  kphio          = 0.09423773, #pars$par[1],     # quantum yield efficiency as calibrated
-  beta           = 146,          # unit cost ratio a/b,
+  kphio          = par$kphio,    # quantum yield efficiency as calibrated
+  beta           = par$beta_unitcostratio, # unit cost ratio a/b,
   c4             = FALSE,
   method_jmaxlim = "wang17",
   do_ftemp_kphio = FALSE,        # corresponding to setup ORG
   do_soilmstress = FALSE,        # corresponding to setup ORG
   verbose        = TRUE
-  ) %>% 
+  ) |> 
   as_tibble()
 
 ## overwrite forcing with constant conditions (for one site)
-drivers_rpmodel <- df_drivers_fluxnet2015 |> 
-  plyr::mutate(forcing = purrr::map(forcing, ~rename(., rain = rainf, snow = snowf))) %>% 
-  slice(1) %>% 
-  mutate(forcing = purrr::map(forcing, ~mutate(., 
-                                               temp = 20,
-                                               vpd = 1000,
-                                               ppfd = 30 / (60*60*24),
-                                               patm = 101325,
-                                               fapar = 1.0,
-                                               co2 = 400,
-                                               tmin = 20,
-                                               tmax = 20))) %>% 
-  mutate(params_siml = purrr::map(params_siml, ~mutate(.,
-                                                       soilmstress = FALSE,
-                                                       tempstress = FALSE)))
+drivers_rpmodel <- drivers |> 
+  slice(1) |> 
+  mutate(forcing = purrr::map(
+    forcing, 
+    ~mutate(
+      ., 
+      temp = 20,
+      vpd = 1000,
+      ppfd = 30 / (60*60*24),
+      patm = 101325,
+      fapar = 1.0,
+      co2 = 400,
+      tmin = 20,
+      tmax = 20
+      )
+    )) |> 
+  mutate(params_siml = purrr::map(
+    params_siml, 
+    ~mutate(
+      .,
+      soilmstress = FALSE,
+      tempstress = FALSE
+      ))
+    )
 
-params_modl$kphio = 0.09423773 #pars$par[1]
-params_modl$tau_acclim_tempstress = 1.0
-
-out_rsofun <- rsofun::runread_pmodel_f(
+out_rsofun <- runread_pmodel_f(
   drivers_rpmodel,
-  par = params_modl
-  ) %>% 
-  dplyr::select(data) %>%
-  unnest(data) %>% 
+  par = par
+  ) |> 
+  dplyr::select(data) |>
+  unnest(data) |> 
   slice(1)
 ```
 
 ```{r  message = FALSE, warning = FALSE, echo = FALSE}
-print("Are values equivalent?")
-paste("- ci:ca:", all.equal(out_pmodel$chi, out_rsofun$chi, tolerance = 1e-5))
-paste("- GPP:", all.equal(out_pmodel$gpp, out_rsofun$gpp, tolerance = 1e-5))
-paste("- Vcmax:", all.equal(out_pmodel$vcmax / (60*60*24), out_rsofun$vcmax, tolerance = 1e-5))
-paste("- Vcmax25:", all.equal(out_pmodel$vcmax25 / (60*60*24), out_rsofun$vcmax25, tolerance = 1e-5))
-paste("- Jmax:", all.equal(out_pmodel$jmax / (60*60*24), out_rsofun$jmax, tolerance = 1e-5))
-paste("- Jmax25:", all.equal(out_pmodel$jmax25 / (60*60*24), out_rsofun$jmax25, tolerance = 1e-5))
-```
-
-### Setup BRC
-
-```{r include = FALSE}
-out_pmodel <- rpmodel( 
-  tc             = 20,           # temperature, deg C
-  vpd            = 1000,         # Pa,
-  co2            = 400,          # ppm,
-  fapar          = 1,            # fraction  ,
-  ppfd           = 30,           # mol/m2/d,
-  elv            = 0,            # m.a.s.l.,
-  kphio          = 0.081785,     # quantum yield efficiency as calibrated for setup ORG by Stocker et al. 2020 GMD,
-  beta           = 146,          # unit cost ratio a/b,
-  c4             = FALSE,
-  method_jmaxlim = "wang17",
-  do_ftemp_kphio = TRUE,        # corresponding to setup ORG
-  do_soilmstress = FALSE,        # corresponding to setup ORG
-  verbose        = TRUE
-  ) %>% 
-  as_tibble()
-
-## overwrite forcing with constant conditions (for one site)
-drivers_rpmodel <- df_drivers_fluxnet2015 |> 
-  plyr::mutate(forcing = purrr::map(forcing, ~rename(., rain = rainf, snow = snowf))) %>% 
-  slice(1) %>% 
-  mutate(forcing = purrr::map(forcing, ~mutate(., 
-                                               temp = 20,
-                                               vpd = 1000,
-                                               ppfd = 30 / (60*60*24),
-                                               patm = 101325,
-                                               fapar = 1.0,
-                                               co2 = 400,
-                                               tmin = 20,
-                                               tmax = 20))) %>% 
-  mutate(params_siml = purrr::map(params_siml, ~mutate(.,
-                                                       soilmstress = FALSE,
-                                                       tempstress = TRUE)))
-
-params_modl$kphio = 0.081785
-params_modl$tau_acclim_tempstress = 1.0
-
-out_rsofun <- rsofun::runread_pmodel_f(
-  drivers_rpmodel,
-  par = params_modl
-  ) %>% 
-  dplyr::select(data) %>% 
-  unnest(data) %>% 
-  slice(1)
-```
-
-```{r message = FALSE, warning = FALSE, echo = FALSE}
 print("Are values equivalent for:")
 paste("- ci:ca:", all.equal(out_pmodel$chi, out_rsofun$chi, tolerance = 1e-5))
 paste("- GPP:", all.equal(out_pmodel$gpp, out_rsofun$gpp, tolerance = 1e-5))
