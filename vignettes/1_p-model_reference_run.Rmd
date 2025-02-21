@@ -8,13 +8,13 @@ vignette: >
   %\usepackage[utf8]{inputenc}
 ---
 
-This workflow runs the P-model as implemented in {rsofun} for the reference version.
+This workflow runs the P-model as implemented in {rsofun} for the reference version (v5.0).
 
 ```{r setup, include = FALSE}
 # Install packages
 # if ("rsofun" %in% installed.packages()) remove.packages("rsofun")
 devtools::install_github(
-  "geco-bern/rsofun@v4.2",
+  "geco-bern/rsofun@v5.0",
   upgrade = "never",
   force = TRUE
   )
