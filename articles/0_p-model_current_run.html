@@ -98,47 +98,52 @@ and Beni Stocker</h4>
 
     
     
-<p>This workflow runs the P-model with {rsofun} with the latest version
-and forcing as used in Stocker et al. (2020). Calibration and evaluation
-data is also as in Stocker et al. (2020). All data is from files created
-for Stocker et al. (2020).</p>
-<div class="section level2">
-<h2 id="model-parameters">Model parameters<a class="anchor" aria-label="anchor" href="#model-parameters"></a>
-</h2>
-<p>Model parameters are determined for this version from calibration.
-The code for model calibration is not shown. See
-<code>vignettes/0_p-model_current_run.Rmd</code> for the code.</p>
+<p>This workflow runs the P-model as implemented in {rsofun} with its
+latest version.</p>
+<div class="section level3">
+<h3 id="calibrate">Calibrate<a class="anchor" aria-label="anchor" href="#calibrate"></a>
+</h3>
+<p>Before compiling this vignette, run</p>
 <div class="sourceCode" id="cb1"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="va">params_modl</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span></span>
-<span>  kphio              <span class="op">=</span> <span class="fl">0.04090209</span>, <span class="co"># 0.09423773,  # par_calib$par["kphio"],</span></span>
-<span>  kphio_par_a        <span class="op">=</span> <span class="op">-</span><span class="fl">0.001366283</span>, <span class="co"># par_calib$par["kphio_par_a"],</span></span>
-<span>  kphio_par_b        <span class="op">=</span> <span class="va">par_fixed</span><span class="op">[</span><span class="st">"kphio_par_b"</span><span class="op">]</span>,</span>
-<span>  soilm_thetastar    <span class="op">=</span> <span class="va">par_fixed</span><span class="op">[</span><span class="st">"soilm_thetastar"</span><span class="op">]</span>,</span>
-<span>  soilm_betao        <span class="op">=</span> <span class="fl">0.683499654</span>, <span class="co"># par_calib$par["soilm_betao"], # 0,  # </span></span>
-<span>  beta_unitcostratio <span class="op">=</span> <span class="va">par_fixed</span><span class="op">[</span><span class="st">"beta_unitcostratio"</span><span class="op">]</span>,</span>
-<span>  rd_to_vcmax        <span class="op">=</span> <span class="va">par_fixed</span><span class="op">[</span><span class="st">"rd_to_vcmax"</span><span class="op">]</span>,</span>
-<span>  tau_acclim         <span class="op">=</span> <span class="va">par_fixed</span><span class="op">[</span><span class="st">"tau_acclim"</span><span class="op">]</span>,</span>
-<span>  kc_jmax            <span class="op">=</span> <span class="fl">0.200000000</span> <span class="co"># par_calib$par["kc_jmax"] # 0.41  # </span></span>
-<span><span class="op">)</span></span></code></pre></div>
-</div>
-<div class="section level2">
-<h2 id="model-run">Model run<a class="anchor" aria-label="anchor" href="#model-run"></a>
-</h2>
+<code class="sourceCode R"><span><span class="co"># for multiple folds</span></span>
+<span><span class="co"># source(here::here("analysis/01_submit_calibration_current_run.R"))</span></span>
+<span></span>
+<span><span class="co"># for single fold</span></span>
+<span><span class="kw"><a href="https://rdrr.io/r/base/source.html" class="external-link">source</a></span><span class="op">(</span><span class="fu">here</span><span class="fu">::</span><span class="fu"><a href="https://here.r-lib.org//reference/here.html" class="external-link">here</a></span><span class="op">(</span><span class="st">"analysis/rscript_calibrate_single.R"</span><span class="op">)</span><span class="op">)</span></span></code></pre></div>
+<p>to calibrate parameters for five folds, split by site for spatial
+cross-validation. This creates five files containing calibrated
+parameters and the {BayesianTools} model object returned from the MCMC.
+Read the files.</p>
 <div class="sourceCode" id="cb2"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="va">output</span> <span class="op">&lt;-</span> <span class="fu">rsofun</span><span class="fu">::</span><span class="fu"><a href="https://rdrr.io/pkg/rsofun/man/runread_pmodel_f.html" class="external-link">runread_pmodel_f</a></span><span class="op">(</span></span>
-<span>  <span class="va">df_drivers_fluxnet2015</span> <span class="op">|&gt;</span></span>
-<span>    <span class="fu">dplyr</span><span class="fu">::</span><span class="fu"><a href="https://dplyr.tidyverse.org/reference/mutate.html" class="external-link">mutate</a></span><span class="op">(</span></span>
-<span>      forcing <span class="op">=</span> <span class="fu">purrr</span><span class="fu">::</span><span class="fu"><a href="https://purrr.tidyverse.org/reference/map.html" class="external-link">map</a></span><span class="op">(</span></span>
-<span>        <span class="va">forcing</span>,</span>
-<span>        <span class="op">~</span><span class="fu">rename</span><span class="op">(</span><span class="va">.</span>, rain <span class="op">=</span> <span class="va">rainf</span>, snow <span class="op">=</span> <span class="va">snowf</span><span class="op">)</span><span class="op">)</span></span>
-<span>      <span class="op">)</span> <span class="op">|&gt;</span></span>
-<span>    <span class="fu">dplyr</span><span class="fu">::</span><span class="fu"><a href="https://dplyr.tidyverse.org/reference/mutate.html" class="external-link">mutate</a></span><span class="op">(</span></span>
-<span>      forcing <span class="op">=</span> <span class="fu">purrr</span><span class="fu">::</span><span class="fu"><a href="https://purrr.tidyverse.org/reference/map.html" class="external-link">map</a></span><span class="op">(</span></span>
-<span>        <span class="va">forcing</span>,</span>
-<span>        <span class="op">~</span><span class="fu">mutate</span><span class="op">(</span><span class="va">.</span>, netrad <span class="op">=</span> <span class="fl">0</span><span class="op">)</span><span class="op">)</span></span>
-<span>    <span class="op">)</span>,</span>
-<span>  par <span class="op">=</span> <span class="va">params_modl</span></span>
-<span><span class="op">)</span></span></code></pre></div>
+<code class="sourceCode R"><span><span class="co"># source(here::here("analysis/01_submit_calibration_current_run.R"))</span></span>
+<span><span class="va">par_calib</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/readRDS.html" class="external-link">readRDS</a></span><span class="op">(</span><span class="fu">here</span><span class="fu">::</span><span class="fu"><a href="https://here.r-lib.org//reference/here.html" class="external-link">here</a></span><span class="op">(</span><span class="st">"data/par_calib_light_current.rds"</span><span class="op">)</span><span class="op">)</span></span></code></pre></div>
+<!-- Some diagnostics. -->
+<!-- ```{r} -->
+<!-- plot(par_calib$mod) -->
+<!-- ``` -->
+</div>
+<div class="section level3">
+<h3 id="predict-and-test">Predict and test<a class="anchor" aria-label="anchor" href="#predict-and-test"></a>
+</h3>
+<div class="sourceCode" id="cb3"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="co"># load driver data for all sites</span></span>
+<span><span class="va">drivers</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/readRDS.html" class="external-link">readRDS</a></span><span class="op">(</span><span class="fu">here</span><span class="fu">::</span><span class="fu"><a href="https://here.r-lib.org//reference/here.html" class="external-link">here</a></span><span class="op">(</span><span class="st">"data/drivers.rds"</span><span class="op">)</span><span class="op">)</span></span>
+<span></span>
+<span><span class="co"># Combine fixed and calibrated model parameters</span></span>
+<span><span class="co"># NOTE: this must be consistent with values specified in calibrate_rsofun().</span></span>
+<span><span class="va">par_fixed</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span></span>
+<span>  beta_unitcostratio <span class="op">=</span> <span class="fl">146.0</span>,</span>
+<span>  kc_jmax            <span class="op">=</span> <span class="fl">0.41</span>,</span>
+<span>  rd_to_vcmax        <span class="op">=</span> <span class="fl">0.014</span>,</span>
+<span>  tau_acclim         <span class="op">=</span> <span class="fl">20.0</span></span>
+<span><span class="op">)</span></span>
+<span></span>
+<span><span class="va">par</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="va">par_calib</span>, <span class="va">par_fixed</span><span class="op">)</span></span>
+<span></span>
+<span><span class="va">output</span> <span class="op">&lt;-</span> <span class="fu">runread_pmodel_f</span><span class="op">(</span></span>
+<span>  drivers <span class="op">=</span> <span class="va">drivers</span>,</span>
+<span>  par <span class="op">=</span> <span class="va">par</span></span>
+<span><span class="op">)</span> </span></code></pre></div>
 </div>
 <div class="section level2">
 <h2 id="run-evaluation">Run evaluation<a class="anchor" aria-label="anchor" href="#run-evaluation"></a>
@@ -148,19 +153,13 @@ sofunCalVal package, and outputs daily, monthly and annual summary
 statistics comparing observed with simulated values. We’ll retake this
 same routine when running on the latest release (i.e. the workflow is
 equivalent but for the release of the <code>rsofun</code> package)</p>
-</div>
-<div class="section level2">
-<h2 id="results">Results<a class="anchor" aria-label="anchor" href="#results"></a>
-</h2>
-<table style="width:100%;" class="table">
-<colgroup>
-<col width="25%">
-<col width="14%">
-<col width="16%">
-<col width="14%">
-<col width="17%">
-<col width="10%">
-</colgroup>
+<div class="section level3">
+<h3 id="results">Results<a class="anchor" aria-label="anchor" href="#results"></a>
+</h3>
+<div class="section level4">
+<h4 id="gpp">GPP<a class="anchor" aria-label="anchor" href="#gpp"></a>
+</h4>
+<table class="table">
 <thead><tr class="header">
 <th align="left">Level</th>
 <th align="right">rsq</th>
@@ -172,100 +171,181 @@ equivalent but for the release of the <code>rsofun</code> package)</p>
 <tbody>
 <tr class="odd">
 <td align="left">daily_pooled</td>
-<td align="right">0.6711118</td>
-<td align="right">2.274700</td>
-<td align="right">0.9594255</td>
-<td align="right">-0.1227976</td>
-<td align="right">237777</td>
+<td align="right">0.6493333</td>
+<td align="right">2.2560605</td>
+<td align="right">0.9439850</td>
+<td align="right">-0.1176009</td>
+<td align="right">359373</td>
 </tr>
 <tr class="even">
 <td align="left">xdaily_pooled</td>
-<td align="right">0.7309871</td>
-<td align="right">2.011392</td>
-<td align="right">1.0525394</td>
-<td align="right">-0.1201709</td>
-<td align="right">33152</td>
+<td align="right">0.7208900</td>
+<td align="right">1.9359084</td>
+<td align="right">1.0498264</td>
+<td align="right">-0.1221437</td>
+<td align="right">44981</td>
 </tr>
 <tr class="odd">
 <td align="left">annual_pooled</td>
-<td align="right">0.6552680</td>
-<td align="right">425.480412</td>
-<td align="right">1.1957465</td>
-<td align="right">-69.8919884</td>
-<td align="right">598</td>
+<td align="right">0.6382290</td>
+<td align="right">1.0916564</td>
+<td align="right">1.2195488</td>
+<td align="right">-0.1605885</td>
+<td align="right">977</td>
 </tr>
 <tr class="even">
 <td align="left">monthly_pooled</td>
-<td align="right">0.7575989</td>
-<td align="right">1.844084</td>
-<td align="right">1.0855110</td>
-<td align="right">-0.2585732</td>
-<td align="right">7428</td>
+<td align="right">0.7709408</td>
+<td align="right">1.7109845</td>
+<td align="right">1.0916459</td>
+<td align="right">-0.1237894</td>
+<td align="right">11664</td>
 </tr>
 <tr class="odd">
 <td align="left">spatial</td>
-<td align="right">0.6742977</td>
-<td align="right">442.951690</td>
-<td align="right">1.1592433</td>
-<td align="right">-72.5740133</td>
-<td align="right">109</td>
+<td align="right">0.6387662</td>
+<td align="right">1.1023668</td>
+<td align="right">1.1773376</td>
+<td align="right">-0.1480369</td>
+<td align="right">160</td>
 </tr>
 <tr class="even">
 <td align="left">anomalies_annual</td>
-<td align="right">0.0819797</td>
-<td align="right">167.420654</td>
-<td align="right">0.5862724</td>
-<td align="right">-2.7028986</td>
-<td align="right">598</td>
+<td align="right">0.1170929</td>
+<td align="right">0.4206334</td>
+<td align="right">0.6828624</td>
+<td align="right">-0.0051105</td>
+<td align="right">977</td>
 </tr>
 <tr class="odd">
 <td align="left">meandoy</td>
-<td align="right">0.7202762</td>
-<td align="right">1.866047</td>
-<td align="right">1.0356033</td>
-<td align="right">0.0037699</td>
-<td align="right">42844</td>
+<td align="right">0.7242514</td>
+<td align="right">1.7938438</td>
+<td align="right">1.0500861</td>
+<td align="right">-0.1103636</td>
+<td align="right">64539</td>
 </tr>
 <tr class="even">
 <td align="left">anomalies_daily</td>
-<td align="right">0.2685024</td>
-<td align="right">1.531785</td>
-<td align="right">0.4614379</td>
-<td align="right">-0.0296151</td>
-<td align="right">237603</td>
-</tr>
-<tr class="odd">
-<td align="left">meanxoy</td>
-<td align="right">0.7451584</td>
-<td align="right">1.757658</td>
-<td align="right">1.0598742</td>
-<td align="right">-0.0092887</td>
-<td align="right">5528</td>
-</tr>
-<tr class="even">
-<td align="left">anomalies_xdaily</td>
-<td align="right">0.1496114</td>
-<td align="right">1.165698</td>
-<td align="right">0.4538087</td>
-<td align="right">-0.0025707</td>
-<td align="right">33152</td>
+<td align="right">0.2114147</td>
+<td align="right">1.5982007</td>
+<td align="right">0.4554659</td>
+<td align="right">-0.0092238</td>
+<td align="right">359113</td>
 </tr>
 </tbody>
 </table>
-<div class="section level3">
-<h3 id="daily-spatial-and-annual">8-daily, spatial and annual<a class="anchor" aria-label="anchor" href="#daily-spatial-and-annual"></a>
-</h3>
-<p><img src="0_p-model_current_run_files/figure-html/unnamed-chunk-5-1.png" width="700"><img src="0_p-model_current_run_files/figure-html/unnamed-chunk-5-2.png" width="700"></p>
+<div class="section level5">
+<h5 id="daily-spatial-and-annual">8-daily, spatial and annual<a class="anchor" aria-label="anchor" href="#daily-spatial-and-annual"></a>
+</h5>
+<p><img src="0_p-model_current_run_files/figure-html/unnamed-chunk-6-1.png" width="700"><img src="0_p-model_current_run_files/figure-html/unnamed-chunk-6-2.png" width="700"></p>
 </div>
-<div class="section level3">
-<h3 id="mean-seasonal-cycle">Mean seasonal cycle<a class="anchor" aria-label="anchor" href="#mean-seasonal-cycle"></a>
-</h3>
-<p><img src="0_p-model_current_run_files/figure-html/unnamed-chunk-6-1.png" width="700"></p>
-</div>
-<div class="section level3">
-<h3 id="drought-response">Drought response<a class="anchor" aria-label="anchor" href="#drought-response"></a>
-</h3>
+<div class="section level5">
+<h5 id="mean-seasonal-cycle">Mean seasonal cycle<a class="anchor" aria-label="anchor" href="#mean-seasonal-cycle"></a>
+</h5>
 <p><img src="0_p-model_current_run_files/figure-html/unnamed-chunk-7-1.png" width="700"></p>
+</div>
+<div class="section level5">
+<h5 id="drought-response">Drought response<a class="anchor" aria-label="anchor" href="#drought-response"></a>
+</h5>
+<p><img src="0_p-model_current_run_files/figure-html/unnamed-chunk-8-1.png" width="700"></p>
+</div>
+</div>
+<div class="section level4">
+<h4 id="le">LE<a class="anchor" aria-label="anchor" href="#le"></a>
+</h4>
+<table class="table">
+<thead><tr class="header">
+<th align="left">Level</th>
+<th align="right">rsq</th>
+<th align="right">rmse</th>
+<th align="right">slope</th>
+<th align="right">bias</th>
+<th align="right">nvals</th>
+</tr></thead>
+<tbody>
+<tr class="odd">
+<td align="left">daily_pooled</td>
+<td align="right">0.2569298</td>
+<td align="right">104.77439</td>
+<td align="right">0.2455621</td>
+<td align="right">83.7466046</td>
+<td align="right">421169</td>
+</tr>
+<tr class="even">
+<td align="left">xdaily_pooled</td>
+<td align="right">0.3051175</td>
+<td align="right">103.39162</td>
+<td align="right">0.2474844</td>
+<td align="right">83.6446622</td>
+<td align="right">52536</td>
+</tr>
+<tr class="odd">
+<td align="left">annual_pooled</td>
+<td align="right">0.4090353</td>
+<td align="right">88.17418</td>
+<td align="right">0.3098384</td>
+<td align="right">83.6653414</td>
+<td align="right">1148</td>
+</tr>
+<tr class="even">
+<td align="left">monthly_pooled</td>
+<td align="right">0.3307161</td>
+<td align="right">102.14897</td>
+<td align="right">0.2538495</td>
+<td align="right">83.9141621</td>
+<td align="right">13579</td>
+</tr>
+<tr class="odd">
+<td align="left">spatial</td>
+<td align="right">0.4771749</td>
+<td align="right">84.47549</td>
+<td align="right">0.3719679</td>
+<td align="right">80.2417062</td>
+<td align="right">202</td>
+</tr>
+<tr class="even">
+<td align="left">anomalies_annual</td>
+<td align="right">0.0522273</td>
+<td align="right">10.46185</td>
+<td align="right">0.1136311</td>
+<td align="right">0.0057169</td>
+<td align="right">1148</td>
+</tr>
+<tr class="odd">
+<td align="left">meandoy</td>
+<td align="right">0.3355818</td>
+<td align="right">97.26962</td>
+<td align="right">0.2848276</td>
+<td align="right">79.9400744</td>
+<td align="right">74835</td>
+</tr>
+<tr class="even">
+<td align="left">anomalies_daily</td>
+<td align="right">0.0170511</td>
+<td align="right">29.90105</td>
+<td align="right">0.0847416</td>
+<td align="right">-0.0815497</td>
+<td align="right">420863</td>
+</tr>
+</tbody>
+</table>
+<div class="section level5">
+<h5 id="daily-spatial-and-annual-1">8-daily, spatial and annual<a class="anchor" aria-label="anchor" href="#daily-spatial-and-annual-1"></a>
+</h5>
+<p><img src="0_p-model_current_run_files/figure-html/unnamed-chunk-10-1.png" width="700"><img src="0_p-model_current_run_files/figure-html/unnamed-chunk-10-2.png" width="700"></p>
+</div>
+<div class="section level5">
+<h5 id="mean-seasonal-cycle-1">Mean seasonal cycle<a class="anchor" aria-label="anchor" href="#mean-seasonal-cycle-1"></a>
+</h5>
+<p><img src="0_p-model_current_run_files/figure-html/unnamed-chunk-11-1.png" width="700"></p>
+</div>
+<div class="section level5">
+<h5 id="drought-response-1">Drought response<a class="anchor" aria-label="anchor" href="#drought-response-1"></a>
+</h5>
+<p><img src="0_p-model_current_run_files/figure-html/unnamed-chunk-12-1.png" width="700"></p>
+</div>
+</div>
 </div>
 <div class="section level3">
 <h3 id="consistency-with-rpmodel">Consistency with rpmodel<a class="anchor" aria-label="anchor" href="#consistency-with-rpmodel"></a>
@@ -277,37 +357,26 @@ constant values corresponding to the arguments provided to
 <h4 id="setup-org">Setup ORG<a class="anchor" aria-label="anchor" href="#setup-org"></a>
 </h4>
 <pre><code><span><span class="co">## [1] "Are values equivalent for:"</span></span></code></pre>
-<pre><code><span><span class="co">## [1] "- ci:ca: Mean relative difference: 19.85932"</span></span></code></pre>
-<pre><code><span><span class="co">## [1] "- GPP: Mean relative difference: 1"</span></span></code></pre>
-<pre><code><span><span class="co">## [1] "- Vcmax: Mean relative difference: 1"</span></span></code></pre>
-<pre><code><span><span class="co">## [1] "- Vcmax25: Mean relative difference: 1"</span></span></code></pre>
-<pre><code><span><span class="co">## [1] "- Jmax: Mean relative difference: 215900042"</span></span></code></pre>
-<pre><code><span><span class="co">## [1] "- Jmax25: Mean relative difference: 215900412"</span></span></code></pre>
-</div>
-<div class="section level4">
-<h4 id="setup-brc">Setup BRC<a class="anchor" aria-label="anchor" href="#setup-brc"></a>
-</h4>
-<pre><code><span><span class="co">## [1] "Are values equivalent for:"</span></span></code></pre>
-<pre><code><span><span class="co">## [1] "- ci:ca: Mean relative difference: 19.85932"</span></span></code></pre>
-<pre><code><span><span class="co">## [1] "- GPP: Mean relative difference: 1"</span></span></code></pre>
-<pre><code><span><span class="co">## [1] "- Vcmax: Mean relative difference: 1"</span></span></code></pre>
-<pre><code><span><span class="co">## [1] "- Vcmax25: Mean relative difference: 1"</span></span></code></pre>
-<pre><code><span><span class="co">## [1] "- Jmax: Mean relative difference: 201115440"</span></span></code></pre>
-<pre><code><span><span class="co">## [1] "- Jmax25: Mean relative difference: 201115784"</span></span></code></pre>
+<pre><code><span><span class="co">## [1] "- ci:ca: TRUE"</span></span></code></pre>
+<pre><code><span><span class="co">## [1] "- GPP: Mean relative difference: 3.262141e-05"</span></span></code></pre>
+<pre><code><span><span class="co">## [1] "- Vcmax: Mean relative difference: 3.352861e-05"</span></span></code></pre>
+<pre><code><span><span class="co">## [1] "- Vcmax25: Mean relative difference: 3.081662e-05"</span></span></code></pre>
+<pre><code><span><span class="co">## [1] "- Jmax: Mean relative difference: 3.252596e-05"</span></span></code></pre>
+<pre><code><span><span class="co">## [1] "- Jmax25: Mean relative difference: 3.082243e-05"</span></span></code></pre>
 </div>
 </div>
 <div class="section level3">
 <h3 id="appendix">Appendix<a class="anchor" aria-label="anchor" href="#appendix"></a>
 </h3>
-<div class="sourceCode" id="cb17"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb11"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/utils/sessionInfo.html" class="external-link">sessionInfo</a></span><span class="op">(</span><span class="op">)</span></span></code></pre></div>
-<pre><code><span><span class="co">## R version 4.4.1 (2024-06-14)</span></span>
+<pre><code><span><span class="co">## R version 4.4.2 (2024-10-31)</span></span>
 <span><span class="co">## Platform: x86_64-pc-linux-gnu</span></span>
-<span><span class="co">## Running under: Ubuntu 22.04.5 LTS</span></span>
+<span><span class="co">## Running under: Ubuntu 24.04.1 LTS</span></span>
 <span><span class="co">## </span></span>
 <span><span class="co">## Matrix products: default</span></span>
 <span><span class="co">## BLAS:   /usr/lib/x86_64-linux-gnu/openblas-pthread/libblas.so.3 </span></span>
-<span><span class="co">## LAPACK: /usr/lib/x86_64-linux-gnu/openblas-pthread/libopenblasp-r0.3.20.so;  LAPACK version 3.10.0</span></span>
+<span><span class="co">## LAPACK: /usr/lib/x86_64-linux-gnu/openblas-pthread/libopenblasp-r0.3.26.so;  LAPACK version 3.12.0</span></span>
 <span><span class="co">## </span></span>
 <span><span class="co">## locale:</span></span>
 <span><span class="co">##  [1] LC_CTYPE=C.UTF-8       LC_NUMERIC=C           LC_TIME=C.UTF-8       </span></span>
@@ -322,44 +391,44 @@ constant values corresponding to the arguments provided to
 <span><span class="co">## [1] stats     graphics  grDevices utils     datasets  methods   base     </span></span>
 <span><span class="co">## </span></span>
 <span><span class="co">## other attached packages:</span></span>
-<span><span class="co">##  [1] RColorBrewer_1.1-3 here_1.0.1         ggthemes_5.1.0     knitr_1.48        </span></span>
-<span><span class="co">##  [5] lubridate_1.9.3    ggplot2_3.5.1      readr_2.1.5        tidyr_1.3.1       </span></span>
-<span><span class="co">##  [9] dplyr_1.1.4        rsofun_4.4.1       rpmodel_1.2.3     </span></span>
+<span><span class="co">##  [1] here_1.0.1        ggthemes_5.1.0    knitr_1.49        lubridate_1.9.4  </span></span>
+<span><span class="co">##  [5] ggplot2_3.5.1     readr_2.1.5       tidyr_1.3.1       dplyr_1.1.4      </span></span>
+<span><span class="co">##  [9] rsofun_5.0.0.9000 rpmodel_1.2.3    </span></span>
 <span><span class="co">## </span></span>
 <span><span class="co">## loaded via a namespace (and not attached):</span></span>
-<span><span class="co">##  [1] remotes_2.5.0        rlang_1.1.4          magrittr_2.0.3      </span></span>
-<span><span class="co">##  [4] compiler_4.4.1       mgcv_1.9-1           systemfonts_1.1.0   </span></span>
-<span><span class="co">##  [7] callr_3.7.6          vctrs_0.6.5          stringr_1.5.1       </span></span>
-<span><span class="co">## [10] profvis_0.4.0        pkgconfig_2.0.3      crayon_1.5.3        </span></span>
-<span><span class="co">## [13] fastmap_1.2.0        ellipsis_0.3.2       labeling_0.4.3      </span></span>
-<span><span class="co">## [16] utf8_1.2.4           promises_1.3.0       rmarkdown_2.28      </span></span>
-<span><span class="co">## [19] sessioninfo_1.2.2    tzdb_0.4.0           ps_1.8.1            </span></span>
-<span><span class="co">## [22] nloptr_2.1.1         ragg_1.3.3           purrr_1.0.2         </span></span>
-<span><span class="co">## [25] bit_4.5.0            xfun_0.48            cachem_1.1.0        </span></span>
-<span><span class="co">## [28] jsonlite_1.8.9       highr_0.11           later_1.3.2         </span></span>
-<span><span class="co">## [31] parallel_4.4.1       R6_2.5.1             bslib_0.8.0         </span></span>
-<span><span class="co">## [34] stringi_1.8.4        boot_1.3-30          pkgload_1.4.0       </span></span>
-<span><span class="co">## [37] jquerylib_0.1.4      Rcpp_1.0.13          usethis_3.0.0       </span></span>
-<span><span class="co">## [40] DHARMa_0.4.7         httpuv_1.6.15        Matrix_1.7-0        </span></span>
-<span><span class="co">## [43] splines_4.4.1        timechange_0.3.0     tidyselect_1.2.1    </span></span>
-<span><span class="co">## [46] yaml_2.3.10          miniUI_0.1.1.1       curl_5.2.3          </span></span>
-<span><span class="co">## [49] processx_3.8.4       pkgbuild_1.4.5       plyr_1.8.9          </span></span>
-<span><span class="co">## [52] lattice_0.22-6       tibble_3.2.1         shiny_1.9.1         </span></span>
-<span><span class="co">## [55] withr_3.0.2          bridgesampling_1.1-2 coda_0.19-4.1       </span></span>
-<span><span class="co">## [58] evaluate_1.0.1       desc_1.4.3           urlchecker_1.0.1    </span></span>
-<span><span class="co">## [61] pillar_1.9.0         generics_0.1.3       vroom_1.6.5         </span></span>
-<span><span class="co">## [64] rprojroot_2.0.4      hms_1.1.3            BayesianTools_0.1.8 </span></span>
-<span><span class="co">## [67] munsell_0.5.1        scales_1.3.0         minqa_1.2.8         </span></span>
-<span><span class="co">## [70] xtable_1.8-4         glue_1.8.0           GenSA_1.1.14.1      </span></span>
-<span><span class="co">## [73] tools_4.4.1          lme4_1.1-35.5        fs_1.6.4            </span></span>
-<span><span class="co">## [76] mvtnorm_1.3-1        grid_4.4.1           yardstick_1.3.1     </span></span>
-<span><span class="co">## [79] devtools_2.4.5       colorspace_2.1-1     nlme_3.1-164        </span></span>
-<span><span class="co">## [82] cli_3.6.3            textshaping_0.4.0    fansi_1.0.6         </span></span>
+<span><span class="co">##  [1] Rdpack_2.6.2         remotes_2.5.0        rlang_1.1.5         </span></span>
+<span><span class="co">##  [4] magrittr_2.0.3       compiler_4.4.2       mgcv_1.9-1          </span></span>
+<span><span class="co">##  [7] systemfonts_1.2.1    callr_3.7.6          vctrs_0.6.5         </span></span>
+<span><span class="co">## [10] stringr_1.5.1        profvis_0.4.0        pkgconfig_2.0.3     </span></span>
+<span><span class="co">## [13] crayon_1.5.3         fastmap_1.2.0        ellipsis_0.3.2      </span></span>
+<span><span class="co">## [16] labeling_0.4.3       promises_1.3.2       rmarkdown_2.29      </span></span>
+<span><span class="co">## [19] sessioninfo_1.2.3    tzdb_0.4.0           ps_1.9.0            </span></span>
+<span><span class="co">## [22] nloptr_2.1.1         ragg_1.3.3           purrr_1.0.4         </span></span>
+<span><span class="co">## [25] bit_4.5.0.1          xfun_0.51            cachem_1.1.0        </span></span>
+<span><span class="co">## [28] jsonlite_1.9.0       later_1.4.1          parallel_4.4.2      </span></span>
+<span><span class="co">## [31] R6_2.6.1             bslib_0.9.0          stringi_1.8.4       </span></span>
+<span><span class="co">## [34] boot_1.3-31          pkgload_1.4.0        jquerylib_0.1.4     </span></span>
+<span><span class="co">## [37] Rcpp_1.0.14          usethis_3.1.0        DHARMa_0.4.7        </span></span>
+<span><span class="co">## [40] httpuv_1.6.15        Matrix_1.7-1         splines_4.4.2       </span></span>
+<span><span class="co">## [43] timechange_0.3.0     tidyselect_1.2.1     yaml_2.3.10         </span></span>
+<span><span class="co">## [46] miniUI_0.1.1.1       curl_6.2.1           processx_3.8.5      </span></span>
+<span><span class="co">## [49] pkgbuild_1.4.6       lattice_0.22-6       tibble_3.2.1        </span></span>
+<span><span class="co">## [52] shiny_1.10.0         withr_3.0.2          bridgesampling_1.1-2</span></span>
+<span><span class="co">## [55] coda_0.19-4.1        evaluate_1.0.3       desc_1.4.3          </span></span>
+<span><span class="co">## [58] urlchecker_1.0.1     pillar_1.10.1        reformulas_0.4.0    </span></span>
+<span><span class="co">## [61] generics_0.1.3       vroom_1.6.5          rprojroot_2.0.4     </span></span>
+<span><span class="co">## [64] hms_1.1.3            BayesianTools_0.1.8  munsell_0.5.1       </span></span>
+<span><span class="co">## [67] scales_1.3.0         minqa_1.2.8          xtable_1.8-4        </span></span>
+<span><span class="co">## [70] glue_1.8.0           GenSA_1.1.14.1       tools_4.4.2         </span></span>
+<span><span class="co">## [73] lme4_1.1-36          fs_1.6.5             mvtnorm_1.3-3       </span></span>
+<span><span class="co">## [76] grid_4.4.2           yardstick_1.3.2      rbibutils_2.3       </span></span>
+<span><span class="co">## [79] devtools_2.4.5       colorspace_2.1-1     nlme_3.1-166        </span></span>
+<span><span class="co">## [82] cli_3.6.4            textshaping_1.0.0    khroma_1.15.0       </span></span>
 <span><span class="co">## [85] Brobdingnag_1.2-9    gtable_0.3.6         sass_0.4.9          </span></span>
 <span><span class="co">## [88] digest_0.6.37        htmlwidgets_1.6.4    farver_2.1.2        </span></span>
 <span><span class="co">## [91] memoise_2.0.1        htmltools_0.5.8.1    pkgdown_2.1.1       </span></span>
-<span><span class="co">## [94] lifecycle_1.0.4      mime_0.12            bit64_4.5.2         </span></span>
-<span><span class="co">## [97] MASS_7.3-60.2</span></span></code></pre>
+<span><span class="co">## [94] lifecycle_1.0.4      mime_0.12            bit64_4.6.0-1       </span></span>
+<span><span class="co">## [97] MASS_7.3-61</span></span></code></pre>
 </div>
 </div>
   </div>
