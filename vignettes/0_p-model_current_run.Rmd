@@ -85,7 +85,7 @@ par_fixed <- list(
   tau_acclim         = 20.0
 )
 
-par <- c(par_calib$par, par_fixed)
+par <- c(par_calib, par_fixed)
 
 output <- runread_pmodel_f(
   drivers = drivers,
