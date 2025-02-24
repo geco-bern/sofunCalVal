@@ -65,6 +65,11 @@ to calibrate parameters for five folds, split by site for spatial cross-validati
 par_calib <- readRDS(here::here("data/par_calib_light_current.rds"))
 ```
 
+```{r}
+knitr::kable(t(par_calib))
+```
+
+
 <!-- Some diagnostics. -->
 <!-- ```{r} -->
 <!-- plot(par_calib$mod) -->
