@@ -53,16 +53,16 @@ Before compiling this vignette, run
 
 ```{r, eval=FALSE} 
 # for multiple folds
-# source(here::here("analysis/01_submit_calibration_current_run.R"))
+# source(here::here("analysis/01_submit_calibration_reference_run.R"))
 
 # for single fold
-source(here::here("analysis/rscript_calibrate_single.R"))
+source(here::here("analysis/rscript_calibrate_reference.R"))
 ```
 
 to calibrate parameters for five folds, split by site for spatial cross-validation. This creates five files containing calibrated parameters and the {BayesianTools} model object returned from the MCMC. Read the files.
 ```{r}
-# source(here::here("analysis/01_submit_calibration_current_run.R"))
-par_calib <- readRDS(here::here("data/par_calib_light_current.rds"))
+# source(here::here("analysis/01_submit_calibration_reference_run.R"))
+par_calib <- readRDS(here::here("data/par_calib_light_reference.rds"))
 ```
 
 ```{r}

@@ -56,7 +56,7 @@ Before compiling this vignette, run
 # source(here::here("analysis/01_submit_calibration_current_run.R"))
 
 # for single fold
-source(here::here("analysis/rscript_calibrate_single.R"))
+source(here::here("analysis/rscript_calibrate_current.R"))
 ```
 
 to calibrate parameters for five folds, split by site for spatial cross-validation. This creates five files containing calibrated parameters and the {BayesianTools} model object returned from the MCMC. Read the files.
