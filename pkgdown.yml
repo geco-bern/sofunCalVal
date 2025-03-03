@@ -4,7 +4,7 @@ pkgdown_sha: ~
 articles:
   0_p-model_current_run: 0_p-model_current_run.html
   1_p-model_reference_run: 1_p-model_reference_run.html
-last_built: 2025-02-24T07:07Z
+last_built: 2025-03-03T20:52Z
 urls:
   reference: https://geco-bern.github.io/sofunCalVal/reference
   article: https://geco-bern.github.io/sofunCalVal/articles
