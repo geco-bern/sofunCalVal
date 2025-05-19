@@ -1,0 +1,651 @@
+```{r setup}
+
+# Load packages
+library(rsofun)
+library(dplyr)
+library(tidyr)
+library(readr)
+library(ggplot2)
+library(lubridate)
+library(knitr)
+library(ggthemes)
+library(here)
+
+# Load functions
+source(here("R/eval_sofun.R"))
+source(here("R//get_stats.R"))
+source(here("R//analyse_modobs2.R"))
+source(here("R/align_events.R"))
+source(here("R/eval_droughtresponse.R"))
+source(here("R/heatscatter_dependencies.R"))
+source(here("R/create_obs_eval.R"))
+
+
+# Set seed
+set.seed(42)
+
+# model forcing data
+driver <- read_rds("/data_2/FluxDataKit/v3.4/zenodo_upload/rsofun_driver_data_v3.4.2.rds") # currently only on workstation
+
+# site meta info
+fdk_site_info <- read_csv("/data_2/FluxDataKit/v3.4/zenodo_upload/fdk_site_info.csv")
+
+# mispell
+fdk_site_info$koeppen_code <-  ifelse(fdk_site_info$koeppen_code == "BSh","Bsh",fdk_site_info$koeppen_code)
+fdk_site_info$koeppen_code <-  ifelse(fdk_site_info$koeppen_code == "BWh","Bwh",fdk_site_info$koeppen_code)
+fdk_site_info$koeppen_code <-  ifelse(fdk_site_info$koeppen_code == "BSk","Bsk",fdk_site_info$koeppen_code)
+
+
+# data quality filter info
+fdk_filter <-  read_csv("/data_2/FluxDataKit/v3.4/zenodo_upload/fdk_site_fullyearsequence.csv")
+
+# exclude croplands and wetlands from calibration/evaluation
+fdk_site_info <- fdk_site_info[
+  fdk_site_info$igbp_land_use != "CRO" 
+  & fdk_site_info$igbp_land_use != "WET"
+                               ,]
+driver_forcing <- driver |> 
+ dplyr::select(sitename, forcing) |> 
+  unnest(cols = c(forcing))
+
+driver <- driver_forcing |>
+  left_join(
+    fdk_filter |> 
+     dplyr::select(
+        sitename, 
+        year_start = year_start_gpp, 
+        year_end = year_end_gpp),
+    by = join_by(sitename)
+  ) |> 
+  mutate(year = year(date)) |> 
+  filter(year >= year_start & year <= year_end) |> 
+ dplyr::select(-year_start, -year_end, -year) |> 
+  group_by(sitename) |> 
+  nest() |> 
+  left_join(
+    driver |> 
+     dplyr::select(
+        sitename, 
+        site_info,
+        params_siml
+      ),
+    by = join_by(sitename)
+  ) |> 
+  rename(forcing = data) |> 
+ dplyr::select(sitename, params_siml, site_info, forcing) |> 
+  ungroup()
+
+
+# apply good year sequence data quality filter for LE
+fdk_filter <- fdk_filter[fdk_filter$drop_le == "FALSE",]
+
+driver <- driver[which(driver$sitename %in% fdk_site_info$sitename &
+                       driver$sitename %in% fdk_filter$sitename),]
+
+fdk_site_info <- fdk_site_info[which(fdk_site_info$sitename %in% driver$sitename),]
+
+fdk_filter <- fdk_filter[which(fdk_filter$sitename %in% driver$sitename &
+                               fdk_filter$sitename %in% fdk_site_info$sitename),]
+
+driver_forcing <- driver |> 
+ dplyr::select(sitename, forcing) |> 
+  unnest(cols = c(forcing))
+
+driver <- driver_forcing |>
+  left_join(
+    fdk_filter |> 
+     dplyr::select(
+        sitename, 
+        year_start = year_start_le, 
+        year_end = year_end_le),
+    by = join_by(sitename)
+  ) |> 
+  mutate(year = year(date)) |> 
+  filter(year >= year_start & year <= year_end) |> 
+ dplyr::select(-year_start, -year_end, -year) |> 
+  group_by(sitename) |> 
+  nest() |> 
+  left_join(
+    driver |> 
+     dplyr::select(
+        sitename, 
+        site_info,
+        params_siml
+      ),
+    by = join_by(sitename)
+  ) |> 
+  rename(forcing = data) |> 
+ dplyr::select(sitename, params_siml, site_info, forcing) |> 
+  ungroup()
+
+# sitedplyr::selection: good-quality sites from analysis of Stocker et al. (2018) New Phyt.
+df_flue <- readr::read_csv("~/data_scratch/SoFunCalVal_definitivo/data/flue_stocker18nphyt.csv")
+
+df_flue <- df_flue[df_flue$site %in% fdk_filter$sitename,]
+
+df_flue <- left_join(df_flue |>
+                       rename(sitename = site), fdk_filter |>
+                      dplyr::select(sitename,year_start_gpp,year_end_gpp),
+                       by = "sitename") |>
+           filter(between(as_date(date),
+                 as_date(paste0(year_start_gpp,"-01-01")),
+                 as_date(paste0(year_end_gpp,"-12-31"))
+                 )) |>
+          dplyr::select(-c(year_start_gpp,year_end_gpp)) |>
+           rename(site = sitename)
+
+# filter out sites with ET higher than precipitation
+
+le_to_et <- function(df){
+  1000 * 60 * 60 * 24 * df$le / (cwd::calc_enthalpy_vap(df$temp) * cwd::calc_density_h2o(df$temp, df$patm))
+}
+
+
+filter <- driver |>
+  unnest(forcing) |>
+  dplyr::select(sitename,le,temp,patm,rain) |>
+  mutate(rain = rain * 60 * 60 * 24 )
+
+filter$et <- le_to_et(filter)
+
+filter <- filter |>
+  group_by(sitename) |>
+  summarise(rain = sum(rain,na.rm = T),
+            et = sum(et,na.rm = T)) |>
+  mutate(to_drop = ifelse(et > rain,T,F))
+
+filter <- filter |> filter(to_drop == F)
+
+driver <- driver[driver$sitename %in% filter$sitename,]
+
+fdk_site_info <- fdk_site_info[fdk_site_info$sitename %in% driver$sitename,]
+
+
+driver <- driver |> 
+  unnest(forcing) |>
+  mutate(aet = 1000 * 60 * 60 * 24 * le / (cwd::calc_enthalpy_vap(temp) * cwd::calc_density_h2o(temp, patm))) |>
+  nest(forcing = c("date","temp", "vpd", "ppfd", "netrad", "patm", "snow", "rain", "tmin", "tmax", "vwind", "fapar", "co2", "ccov",
+                   "gpp", "gpp_qc", "nee", "nee_qc", "le", "le_qc", "aet"))
+
+# construct list of observations used for evaluation
+obs_eval <- create_obs_eval(driver ,fdk_site_info, target = c("gpp","aet"))
+```
+
+
+# Model run
+
+```{r run, warning = FALSE, message = FALSE}
+# best paramters
+
+params_modl <- list(
+  kphio              =  4.646905e-02, 
+  kphio_par_a        = -9.999618e-04,       
+  kphio_par_b        =  2.354870e+01,
+  rd_to_vcmax        =  0.014,  
+  soilm_thetastar    =  3.964174e+02, 
+  beta_unitcostratio =  1.546904e+02,
+  tau_acclim         =  30,
+  kc_jmax            =  0.41,
+  gw_calib           =  6.619571e-01
+)
+
+driver <- driver |> unnest(params_siml) |>
+  mutate(use_gs = TRUE,
+         use_phydro = FALSE,
+         use_pml= TRUE) |>
+  group_by(sitename) |>
+  nest(params_siml = c(spinup, spinupyears, recycle, outdt, ltre,  ltne,  ltrd,  ltnd,  lgr3,  lgn3,  lgr4 ,
+                       use_gs, use_phydro, use_pml))
+
+
+ output <- rsofun::runread_pmodel_f(
+  driver,
+  par = params_modl
+ )
+```
+
+# Run evaluation
+
+This runs the `eval_sofun()` routine included in the sofunCalVal package, and outputs daily, monthly and annual summary statistics comparing observed with simulated values. We'll retake this same routine when running on the latest release (i.e. the workflow is equivalent but for the release of the `rsofun` package)
+
+```{r evaluation, warning=FALSE, message=FALSE, error=FALSE}
+
+settings_eval <- list(
+  benchmark = list( gpp = c("fluxnet"), aet = c("fluxnet") ),
+  sitenames = output$sitename,
+  agg       = 7
+  )
+
+out_eval <- eval_sofun( 
+  output, 
+  settings_eval, 
+  obs_eval = obs_eval, 
+  overwrite = TRUE, 
+  light = FALSE 
+  )
+```
+
+# Results GPP
+
+```{r warning=FALSE, message=FALSE, error=FALSE, echo = FALSE}
+out_eval$gpp$fluxnet$metrics %>% 
+  bind_rows(.id = "Level") %>% 
+  kable(caption= "GPP")
+```
+
+## 8-daily, spatial and annual
+
+```{r message = FALSE, warning = FALSE, echo = FALSE}
+out_eval$gpp$fluxnet$plot$gg_modobs_xdaily
+out_eval$gpp$fluxnet$plot$gg_modobs_spatial_annual
+```
+
+## Mean seasonal cycle
+
+```{r message = FALSE, warning = FALSE, echo = FALSE}
+
+climates <-  out_eval$gpp$fluxnet$data$meandoydf_byclim_stats
+
+metrics_rsq <- climates |> 
+  group_by(climatezone) |>
+  summarise(rsq = mean(rsq), 
+            rmse = mean(RMSE),# are repeated elements
+            x_pos = 365,
+            y_pos = 17.5) |>
+  mutate(rsq = paste0("rsq = ", substr(rsq,1,4)))
+
+metrics_rmse <- climates |> 
+  group_by(climatezone) |>
+  summarise( 
+            rmse = mean(RMSE),# are repeated elements
+            x_pos = 365,
+            y_pos = 14.5) |>
+  mutate(rmse = paste0("rmse = ", substr(rmse,1,4)))
+
+
+out_eval$gpp$fluxnet$data$meandoydf_byclim %>% 
+  dplyr::filter(climatezone %in%  unique(out_eval$gpp$fluxnet$data$meandoydf_byclim$climatezone)[1:10]
+    ) %>%
+  dplyr::filter(climatezone != "- north") %>% 
+  pivot_longer(
+    c(obs_mean, mod_mean),
+    names_to = "source",
+    values_to = "gpp"
+    ) %>% 
+  ggplot() +
+  geom_ribbon(
+    aes(x = doy, ymin = obs_min, ymax = obs_max), 
+    fill = "black", 
+    alpha = 0.2
+    ) +
+  geom_line(aes(x = doy, y = gpp, color = source), size = 0.4) +
+  labs(y = expression( paste("Simulated GPP (g C m"^-2, " d"^-1, ")" ) ), 
+       x = "DOY") +
+  facet_wrap( ~climatezone ) +
+  geom_text(data = metrics_rsq |> dplyr::filter(climatezone %in%  unique(out_eval$gpp$fluxnet$data$meandoydf_byclim$climatezone)[2:10]), 
+                                                aes(x = x_pos, y = y_pos, label = rsq), size = 4, hjust = 1) +
+  geom_text(data = metrics_rmse |> dplyr::filter(climatezone %in%  unique(out_eval$gpp$fluxnet$data$meandoydf_byclim$climatezone)[2:10]), 
+                                               aes(x = x_pos, y = y_pos, label = rmse), size = 4, hjust = 1) +
+  theme_gray() +
+  theme(legend.position = "bottom") +
+  scale_color_manual(
+    name = "Setup: ",
+    values = c("red", "black")
+    )
+```
+
+```{r}
+out_eval$gpp$fluxnet$data$meandoydf_byclim %>% 
+  dplyr::filter(climatezone %in%  unique(out_eval$gpp$fluxnet$data$meandoydf_byclim$climatezone)[11:19]) %>%
+  dplyr::filter(koeppen_code != "-") %>% 
+  pivot_longer(
+    c(obs_mean, mod_mean),
+    names_to = "source",
+    values_to = "gpp"
+    ) %>% 
+  ggplot() +
+  geom_ribbon(
+    aes(x = doy, ymin = obs_min, ymax = obs_max), 
+    fill = "black", 
+    alpha = 0.2
+    ) +
+  geom_line(aes(x = doy, y = gpp, color = source), size = 0.4) +
+  labs(y = expression( paste("Simulated GPP (g C m"^-2, " d"^-1, ")" ) ), 
+       x = "DOY") +
+  facet_wrap( ~climatezone ) +
+  geom_text(data = metrics_rsq |> dplyr::filter(climatezone %in%  unique(out_eval$gpp$fluxnet$data$meandoydf_byclim$climatezone)[11:19]), 
+                                                aes(x = x_pos, y = y_pos, label = rsq), size = 4.5, hjust = 1) +
+  geom_text(data = metrics_rmse |> dplyr::filter(climatezone %in%  unique(out_eval$gpp$fluxnet$data$meandoydf_byclim$climatezone)[11:19]), 
+                                               aes(x = x_pos, y = y_pos, label = rmse), size = 4.5, hjust = 1) +
+  theme_gray() +
+  theme(legend.position = "bottom") +
+  scale_color_manual(
+    name = "Setup: ",
+    values = c("red", "black")
+    )
+```
+
+```{r}
+out_eval$gpp$fluxnet$data$meandoydf_byclim %>%
+  dplyr::filter(climatezone %in%  unique(out_eval$gpp$fluxnet$data$meandoydf_byclim$climatezone)[20:28]) %>%
+  dplyr::filter(koeppen_code != "-") %>%
+  pivot_longer(
+    c(obs_mean, mod_mean),
+    names_to = "source",
+    values_to = "gpp"
+    ) %>%
+  ggplot() +
+  geom_ribbon(
+    aes(x = doy, ymin = obs_min, ymax = obs_max),
+    fill = "black",
+    alpha = 0.2
+    ) +
+  geom_line(aes(x = doy, y = gpp, color = source), size = 0.4) +
+  labs(y = expression( paste("Simulated GPP (g C m"^-2, " d"^-1, ")" ) ),
+       x = "DOY") +
+  facet_wrap( ~climatezone ) +
+    geom_text(data = metrics_rsq |> dplyr::filter(climatezone %in%  unique(out_eval$gpp$fluxnet$data$meandoydf_byclim$climatezone)[20:28]), 
+                                                aes(x = x_pos, y = y_pos, label = rsq), size = 4.5, hjust = 1) +
+  geom_text(data = metrics_rmse |> dplyr::filter(climatezone %in%  unique(out_eval$gpp$fluxnet$data$meandoydf_byclim$climatezone)[20:28]), 
+                                               aes(x = x_pos, y = y_pos, label = rmse), size = 4.5, hjust = 1) +
+  theme_gray() +
+  theme(legend.position = "bottom") +
+  scale_color_manual(
+    name = "Setup: ",
+    values = c("red", "black")
+    )
+```
+
+
+## Drought response
+
+```{r message = FALSE, warning = FALSE, echo = FALSE}
+df_dday_agg <- eval_droughtresponse( 
+  df = out_eval$gpp$fluxnet$data$ddf %>%
+    rename(
+      site = sitename
+      ), 
+  df_flue = readr::read_csv("~/data_scratch/SoFunCalVal_definitivo/data/flue_stocker18nphyt.csv"),
+  before = 20,
+  after = 105,
+  leng_threshold = 10, 
+  nbins = 10, 
+  do_norm = TRUE
+  )
+
+df_dday_agg %>% 
+  ggplot() +
+  geom_hline(
+    yintercept = 0,
+    color = "black",
+    linetype = "dotted"
+    ) +
+  geom_vline(
+    xintercept = 0,
+    color = "black",
+    linetype = "dotted"
+    ) +
+  geom_line(
+    aes(
+      x = dday,
+      y = median
+      ),
+    size = 0.9) +
+  geom_ribbon(
+    aes(
+      x = dday,
+      ymin = q33,
+      ymax = q66
+      ), 
+    alpha = 0.3) +
+  scale_color_manual(
+    values = c(
+      "BRC" = "black",
+      "FULL" = "royalblue"
+      ),
+    name = "Setup"
+    ) +
+  scale_fill_manual(
+    values = c(
+      "BRC" = "black",
+      "FULL" = "royalblue"
+      ),
+    name = "Setup") +
+  ylim(-1.2, 2.2) + 
+  xlim(-20, 105) +
+  scale_x_continuous(
+    expand = c(0,0)
+    ) +
+  scale_y_continuous(
+    expand = c(0,0)
+    ) +
+  labs(
+    x = "Days after drought onset",
+    y = expression( paste( "Bias (g C m"^{-1}, " d"^{-1}, ")")) 
+    ) +
+  theme_classic() +
+  theme(
+    panel.grid.major.y = element_line(),
+    panel.grid.major.x = element_line()
+  )
+```
+
+
+
+# Results AET
+
+```{r warning=FALSE, message=FALSE, error=FALSE, echo = FALSE}
+out_eval$aet$fluxnet$metrics %>% 
+  bind_rows(.id = "Level") %>% 
+  kable(caption= "AET")
+```
+
+## 8-daily, spatial and annual
+
+<!-- xxx plot means across weeks, months, years, ... -->
+
+```{r message = FALSE, warning = FALSE, echo = FALSE}
+out_eval$aet$fluxnet$plot$gg_modobs_xdaily
+out_eval$aet$fluxnet$plot$gg_modobs_spatial_annual
+```
+
+## Mean seasonal cycle
+
+
+```{r message = FALSE, warning = FALSE, echo = FALSE}
+
+climates <-  out_eval$aet$fluxnet$data$meandoydf_byclim_stats
+
+metrics_rsq <- climates |> 
+  group_by(climatezone) |>
+  summarise(rsq = mean(rsq), 
+            rmse = mean(RMSE),# are repeated elements
+            x_pos = 365,
+            y_pos = 8.1) |>
+  mutate(rsq = paste0("rsq = ", substr(rsq,1,4)))
+
+metrics_rmse <- climates |> 
+  group_by(climatezone) |>
+  summarise( 
+            rmse = mean(RMSE),# are repeated elements
+            x_pos = 365,
+            y_pos = 6.8) |>
+  mutate(rmse = paste0("rmse = ", substr(rmse,1,4)))
+
+
+out_eval$aet$fluxnet$data$meandoydf_byclim %>% 
+  dplyr::filter(climatezone %in%  unique(out_eval$aet$fluxnet$data$meandoydf_byclim$climatezone)[2:10]) %>%
+  dplyr::filter(koeppen_code != "-") %>% 
+  pivot_longer(
+    c(obs_mean, mod_mean),
+    names_to = "source",
+    values_to = "aet"
+    )%>% 
+  ggplot() +
+  geom_ribbon(
+    aes(x = doy, ymin = obs_min, ymax = obs_max), 
+    fill = "black", 
+    alpha = 0.2
+    ) +
+  geom_line(aes(x = doy, y = aet, color = source), size = 0.4) +
+  labs(y =  expression( paste("Simulated AET (mm d"^{-1}, ")" ) ), 
+       x = "DOY") +
+  ylim(0,8.5) +
+  facet_wrap( ~climatezone ) +
+  geom_text(data = metrics_rsq |> dplyr::filter(climatezone %in%  unique(out_eval$aet$fluxnet$data$meandoydf_byclim$climatezone)[2:10]), 
+                                                aes(x = x_pos, y = y_pos, label = rsq), size = 4.5, hjust = 1) +
+  geom_text(data = metrics_rmse |> dplyr::filter(climatezone %in%  unique(out_eval$aet$fluxnet$data$meandoydf_byclim$climatezone)[2:10]), 
+                                               aes(x = x_pos, y = y_pos, label = rmse), size = 4.5, hjust = 1) +
+  theme_gray() +
+  theme(legend.position = "bottom") +
+  scale_color_manual(
+    name = "Setup: ",
+    values = c("red", "black")
+    )
+
+
+#ggsave("../prova.png", plot = plt, height = 1768, width = 2500 , units = "px",scale = 1)
+```
+
+
+
+```{r}
+out_eval$aet$fluxnet$data$meandoydf_byclim %>% 
+  dplyr::filter(climatezone %in%  unique(out_eval$aet$fluxnet$data$meandoydf_byclim$climatezone)[11:19]) %>%
+  dplyr::filter(koeppen_code != "-") %>% 
+  pivot_longer(
+    c(obs_mean, mod_mean),
+    names_to = "source",
+    values_to = "aet"
+    )%>% 
+  ggplot() +
+  geom_ribbon(
+    aes(x = doy, ymin = obs_min, ymax = obs_max), 
+    fill = "black", 
+    alpha = 0.2
+    ) +
+  geom_line(aes(x = doy, y = aet, color = source), size = 0.4) +
+  labs(y =  expression( paste("Simulated AET (mm d"^{-1}, ")" ) ), 
+       x = "DOY") +
+  ylim(0,8.5) +
+  facet_wrap( ~climatezone ) +
+  geom_text(data = metrics_rsq |> dplyr::filter(climatezone %in%  unique(out_eval$aet$fluxnet$data$meandoydf_byclim$climatezone)[11:19]), 
+                                                aes(x = x_pos, y = y_pos, label = rsq), size = 4.5, hjust = 1) +
+  geom_text(data = metrics_rmse |> dplyr::filter(climatezone %in%  unique(out_eval$aet$fluxnet$data$meandoydf_byclim$climatezone)[11:19]), 
+                                               aes(x = x_pos, y = y_pos, label = rmse), size = 4.5, hjust = 1) +
+  theme_gray() +
+  theme(legend.position = "bottom") +
+  scale_color_manual(
+    name = "Setup: ",
+    values = c("red", "black")
+    )
+```
+
+```{r}
+out_eval$aet$fluxnet$data$meandoydf_byclim %>% 
+  dplyr::filter(climatezone %in%  unique(out_eval$aet$fluxnet$data$meandoydf_byclim$climatezone)[20:28]) %>%
+  dplyr::filter(koeppen_code != "-") %>% 
+  pivot_longer(
+    c(obs_mean, mod_mean),
+    names_to = "source",
+    values_to = "aet"
+    )%>% 
+  ggplot() +
+  geom_ribbon(
+    aes(x = doy, ymin = obs_min, ymax = obs_max), 
+    fill = "black", 
+    alpha = 0.2
+    ) +
+  geom_line(aes(x = doy, y = aet, color = source), size = 0.4) +
+  labs(y =  expression( paste("Simulated AET (mm d"^{-1}, ")" ) ), 
+       x = "DOY") +
+  ylim(0,8.5) +
+  facet_wrap( ~climatezone ) +
+  geom_text(data = metrics_rsq |> dplyr::filter(climatezone %in%  unique(out_eval$aet$fluxnet$data$meandoydf_byclim$climatezone)[20:28]), 
+                                                aes(x = x_pos, y = y_pos, label = rsq), size = 4.5, hjust = 1) +
+  geom_text(data = metrics_rmse |> dplyr::filter(climatezone %in%  unique(out_eval$aet$fluxnet$data$meandoydf_byclim$climatezone)[20:28]), 
+                                               aes(x = x_pos, y = y_pos, label = rmse), size = 4.5, hjust = 1) +
+  theme_gray() +
+  theme(legend.position = "bottom") +
+  scale_color_manual(
+    name = "Setup: ",
+    values = c("red", "black")
+    )
+```
+
+
+## Drought response
+
+```{r message = FALSE, warning = FALSE, echo = FALSE}
+df_dday_agg <- eval_droughtresponse( 
+  df = out_eval$aet$fluxnet$data$ddf %>%
+    rename(
+      site = sitename
+      ), 
+  df_flue = readr::read_csv("~/data_scratch/SoFunCalVal_definitivo/data/flue_stocker18nphyt.csv"),
+  before = 20,
+  after = 105,
+  leng_threshold = 10, 
+  nbins = 10, 
+  do_norm = TRUE
+  )
+
+df_dday_agg %>% 
+  ggplot() +
+  geom_hline(
+    yintercept = 0,
+    color = "black",
+    linetype = "dotted"
+    ) +
+  geom_vline(
+    xintercept = 0,
+    color = "black",
+    linetype = "dotted"
+    ) +
+  geom_line(
+    aes(
+      x = dday,
+      y = median
+      ),
+    size = 0.9) +
+  geom_ribbon(
+    aes(
+      x = dday,
+      ymin = q33,
+      ymax = q66
+      ), 
+    alpha = 0.3) +
+  scale_color_manual(
+    values = c(
+      "BRC" = "black",
+      "FULL" = "royalblue"
+      ),
+    name = "Setup"
+    ) +
+  scale_fill_manual(
+    values = c(
+      "BRC" = "black",
+      "FULL" = "royalblue"
+      ),
+    name = "Setup") +
+  ylim(-1.2, 2.2) + 
+  xlim(-20, 105) +
+  scale_x_continuous(
+    expand = c(0,0)
+    ) +
+  scale_y_continuous(
+    expand = c(0,0)
+    ) +
+  labs(
+    x = "Days after drought onset",
+    y = expression( paste( "Bias AET (mm d"^{-1}, ")")) 
+    ) +
+  theme_classic() +
+  theme(
+    panel.grid.major.y = element_line(),
+    panel.grid.major.x = element_line()
+  )
+```
+
+
+
